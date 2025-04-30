@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  rust-backend:
+    image: koval01/rust-backend:latest
+    container_name: rust-api
+    ports:
+      - "8000:8000"
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
