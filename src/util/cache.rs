@@ -8,30 +8,25 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{to_string, from_str};
 
 use moka::future::Cache;
-use reqwest::{Client, Error as ReqwestError};
 
 use std::time::Duration;
 use std::future::Future;
+use axum::http::StatusCode;
+use crate::error::ApiError;
 
 #[derive(Debug)]
 pub enum CacheError {
     Redis(RunError<RedisError>),      // Error related to Redis connection or operations
-    Reqwest(ReqwestError),            // Error related to HTTP requests
     Serialization(serde_json::Error), // Error related to JSON serialization/deserialization
     NotFound,                         // Error indicating that the data was not found
+    FetchError(String),               // Generic error for fetch operations
+    CachedError(StatusCode, String),  // Cached errors
 }
 
 // Implement conversion from Redis errors to CacheError
 impl From<RunError<RedisError>> for CacheError {
     fn from(err: RunError<RedisError>) -> Self {
         CacheError::Redis(err)
-    }
-}
-
-// Implement conversion from Reqwest errors to CacheError
-impl From<ReqwestError> for CacheError {
-    fn from(err: ReqwestError) -> Self {
-        CacheError::Reqwest(err)
     }
 }
 
@@ -42,181 +37,175 @@ impl From<serde_json::Error> for CacheError {
     }
 }
 
-pub struct CacheWrapper<T> {
-    redis_pool: Pool<RedisConnectionManager>,   // Redis connection pool
-    moka_cache: Cache<String, String>,          // Moka in-memory cache
-    cache_ttl: Duration,                        // Time-to-live for Redis cache
-    http_client: Client,                        // Reqwest HTTP client
-    _phantom: std::marker::PhantomData<T>,      // Marker for generic type T
+impl From<RedisError> for CacheError {
+    fn from(err: RedisError) -> Self {
+        CacheError::Redis(RunError::User(err))
+    }
 }
 
-// A generic wrapper for Redis-based caching
+#[derive(Debug, Clone)]
+pub enum CacheBackend {
+    Redis(Pool<RedisConnectionManager>),
+    Disabled,
+}
+
+pub struct CacheWrapper<T> {
+    backend: CacheBackend,             // Redis connection pool or disabled
+    moka_cache: Cache<String, String>, // Moka in-memory cache
+    cache_ttl: Duration,               // Time-to-live for Success cache
+    error_ttl: Duration,               // Time-to-life for Error cache
+    _phantom: std::marker::PhantomData<T>, // Marker for generic type T
+}
+
 impl<T> CacheWrapper<T>
 where
     T: Serialize + DeserializeOwned + Send + Sync,
 {
     /// Constructor for CacheWrapper
     pub fn new(
-        redis_pool: Pool<RedisConnectionManager>,
+        backend: CacheBackend,
         moka_cache: Cache<String, String>,
         cache_ttl_secs: u64,
-        http_client: Client,
+        error_ttl_secs: u64,
     ) -> Self {
         Self {
-            redis_pool,
+            backend,
             moka_cache,
             cache_ttl: Duration::from_secs(cache_ttl_secs),
-            http_client,
+            error_ttl: Duration::from_secs(error_ttl_secs),
             _phantom: std::marker::PhantomData,
         }
     }
 
-    /// Get the HTTP client
-    #[allow(dead_code)]
-    pub fn client(&self) -> &Client {
-        &self.http_client
-    }
-
-    /// Attempts to retrieve the value from Moka, Redis, or HTTP (via `http_fetch`).
-    pub async fn get_or_fetch<F, Fut>(
+    /// Attempts to retrieve the value from Moka, Redis (if enabled), or via the provided fetch function.
+    pub async fn get_or_fetch<F, Fut, E>(
         &self,
         key: &str,
-        http_fetch: F,
+        fetch_fn: F,
     ) -> Result<T, CacheError>
     where
-        F: FnOnce(Client) -> Fut,
-        Fut: Future<Output = Result<Option<T>, ReqwestError>> + Send,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<Option<T>, E>> + Send,
+        E: std::fmt::Display + Into<ApiError>,
     {
-        // Check Moka cache
-        if let Some(cached_value) = self.moka_cache.get(key).await {
-            if cached_value == "__not_found__" {
-                return Err(CacheError::NotFound);
-            }
-            if let Ok(parsed_data) = from_str(&cached_value) {
-                return Ok(parsed_data);
-            }
+        // Check caches first
+        if let Some(cached_value) = self.get_from_caches(key).await? {
+            return self.handle_cached_value(cached_value).await;
         }
 
-        // Check Redis cache
-        let mut conn = self.redis_pool.get().await.map_err(CacheError::from)?;
-        if let Ok(Some(cached_data)) = conn.get::<_, Option<String>>(key).await {
-            if cached_data == "__not_found__" {
-                // Cache "not found" marker in Moka
-                self.moka_cache.insert(key.to_string(), "__not_found__".to_string()).await;
-                return Err(CacheError::NotFound);
+        // Fetch from provided function if not found in caches
+        match fetch_fn().await {
+            Ok(Some(data)) => {
+                let serialized = to_string(&data)?;
+                self.cache_value(key, serialized, self.cache_ttl).await?;
+                Ok(data)
             }
-            if let Ok(parsed_data) = from_str(&cached_data) {
-                // Cache the result in Moka
-                self.moka_cache.insert(key.to_string(), cached_data).await;
-                return Ok(parsed_data);
+            Ok(None) => {
+                self.cache_not_found(key).await?;
+                Err(CacheError::NotFound)
             }
-        }
-
-        // Fetch from HTTP request
-        // Use clone of the client to avoid lifetime issues
-        let client_clone = self.http_client.clone();
-        let http_result = http_fetch(client_clone).await.map_err(CacheError::from)?;
-
-        if let Some(data) = http_result {
-            // Cache the result in both Moka and Redis
-            if let Ok(serialized) = to_string(&data) {
-                self.moka_cache.insert(key.to_string(), serialized.clone()).await;
-                let mut conn = self.redis_pool.get().await.map_err(CacheError::from)?;
-                let _: Result<(), _> = conn.set_ex(key, serialized, self.cache_ttl.as_secs()).await;
+            Err(err) => {
+                let api_error: ApiError = err.into();
+                self.cache_error(key, &api_error).await?;
+                Err(CacheError::CachedError(api_error.status_code(), api_error.message()))
             }
-            Ok(data)
-        } else {
-            // Cache "not found" marker in both Moka and Redis
-            self.cache_not_found(key).await?;
-            Err(CacheError::NotFound)
         }
     }
 
-    /// Caches a "not found" marker in both Moka and Redis
-    pub async fn cache_not_found(&self, key: &str) -> Result<(), CacheError> {
-        self.moka_cache.insert(key.to_string(), "__not_found__".to_string()).await;
-        let mut conn = self.redis_pool.get().await.map_err(CacheError::from)?;
-        let _: Result<(), _> = conn
-            .set_ex(key, "__not_found__", self.cache_ttl.as_secs())
-            .await;
+    async fn get_from_caches(&self, key: &str) -> Result<Option<String>, CacheError> {
+        // Check Moka cache first
+        if let Some(cached_value) = self.moka_cache.get(key).await {
+            return Ok(Some(cached_value));
+        }
+
+        // Check Redis cache if enabled
+        if let CacheBackend::Redis(pool) = &self.backend {
+            let mut conn = pool.get().await?;
+            if let Ok(Some(cached_data)) = conn.get::<_, Option<String>>(key).await {
+                return Ok(Some(cached_data));
+            }
+        }
+
+        Ok(None)
+    }
+
+    async fn handle_cached_value(&self, value: String) -> Result<T, CacheError> {
+        if value.starts_with("__error__") {
+            let stripped = value.trim_start_matches("__error__");
+            let parts: Vec<&str> = stripped.splitn(2, "__").collect();
+
+            if parts.len() == 2 {
+                let status = parts[0].parse().unwrap_or(500);
+                let message = parts[1].to_string();
+                return Err(CacheError::CachedError(
+                    StatusCode::from_u16(status)
+                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                    message
+                ));
+            }
+            return Err(CacheError::FetchError("Invalid error format".to_string()));
+        } else if value == "__not_found__" {
+            return Err(CacheError::NotFound);
+        }
+
+        from_str(&value).map_err(Into::into)
+    }
+
+    async fn cache_value(&self, key: &str, value: String, ttl: Duration) -> Result<(), CacheError> {
+        self.moka_cache.insert(key.to_string(), value.clone()).await;
+        if let CacheBackend::Redis(pool) = &self.backend {
+            let mut conn = pool.get().await?;
+            conn.set_ex::<_, _, ()>(key, value, ttl.as_secs()).await?;
+        }
         Ok(())
     }
 
-    /// Updates the cache with new data for a given key in both Moka and Redis
-    #[allow(dead_code)]
-    pub async fn set(&self, key: &str, data: &T) -> Result<(), CacheError> {
-        let serialized = to_string(data).map_err(|e| CacheError::Serialization(e))?;
+    async fn cache_error(&self, key: &str, error: &ApiError) -> Result<(), CacheError> {
+        let error_value = format!("__error__{}__{}",
+                                  error.status_code().as_u16(),
+                                  error.message());
+        self.cache_value(key, error_value, self.error_ttl).await
+    }
 
-        // Check Moka cache first
+    pub async fn cache_not_found(&self, key: &str) -> Result<(), CacheError> {
+        self.cache_value(key, "__not_found__".to_string(), self.cache_ttl).await
+    }
+
+    #[allow(unused)]
+    pub async fn set(&self, key: &str, data: &T) -> Result<(), CacheError> {
+        let serialized = to_string(data)?;
+
         if let Some(cached_value) = self.moka_cache.get(key).await {
-            // If cached data is the same as the new data, skip deletion
             if cached_value == serialized {
                 return Ok(());
             }
         }
 
-        // Update Moka cache
-        self.moka_cache.insert(key.to_string(), serialized.clone()).await;
-
-        // Update Redis cache
-        let mut conn = self.redis_pool.get().await.map_err(CacheError::from)?;
-        let _: Result<(), _> = conn
-            .set_ex(key, serialized, self.cache_ttl.as_secs())
-            .await;
-
-        Ok(())
+        self.cache_value(key, serialized, self.cache_ttl).await
     }
 
-    /// Deletes a key from both Moka and Redis
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub async fn delete(&self, key: &str) -> Result<(), CacheError> {
         self.moka_cache.invalidate(key).await;
-        let mut conn = self.redis_pool.get().await.map_err(CacheError::from)?;
-        let _: Result<(), _> = conn.del(key).await;
+        if let CacheBackend::Redis(pool) = &self.backend {
+            let mut conn = pool.get().await?;
+            conn.del::<_, ()>(key).await?;
+        }
         Ok(())
     }
 }
 
 #[macro_export]
-macro_rules! cache_http_request {
-    ($cache:expr, $key:expr, $request:expr) => {
-        $cache.get_or_fetch($key, |client| {
-            let fut = async move {
-                $request(client).await
-            };
-            fut
+macro_rules! cache_fetch {
+    ($cache:expr, $key:expr, $fetch_fn:expr) => {
+        $cache.get_or_fetch($key, || async {
+            $fetch_fn.await
         }).await
     };
 
-    ($cache:expr, $key:expr, $request:expr, $error_handler:expr) => {
-        $cache.get_or_fetch($key, |client| {
-            let fut = async move {
-                $request(client).await
-            };
-            fut
+    ($cache:expr, $key:expr, $fetch_fn:expr, $error_handler:expr) => {
+        $cache.get_or_fetch($key, || async {
+            $fetch_fn.await
         }).await.map_err($error_handler)
     };
-}
-
-pub trait JsonResponseExt {
-    async fn json_cached<T>(self) -> Result<Option<T>, ReqwestError>
-    where
-        T: DeserializeOwned;
-}
-
-impl JsonResponseExt for reqwest::Response {
-    async fn json_cached<T>(self) -> Result<Option<T>, ReqwestError>
-    where
-        T: DeserializeOwned,
-    {
-        if self.status().is_success() {
-            self.json::<T>().await.map(Some)
-        } else if self.status().is_client_error() {
-            // 4xx responses - treat as "not found"
-            Ok(None)
-        } else {
-            // Other errors - propagate
-            self.error_for_status()?.json::<T>().await.map(Some)
-        }
-    }
 }

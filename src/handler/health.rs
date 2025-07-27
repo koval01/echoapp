@@ -5,7 +5,7 @@ use crate::{
 };
 
 pub async fn health_checker_handler() -> impl IntoResponse {
-    const MESSAGE: &str = "Hello from rust-backend core!";
-    let response: ApiResponse<()> = ApiResponse::message_only(MESSAGE);
+    const MESSAGE: &str = "Hello from trustme core!";
+    let response: ApiResponse<()> = ApiResponse::message_only(Some(MESSAGE));
     Json(response)
 }

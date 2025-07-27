@@ -5,13 +5,19 @@ use axum::{
     body::Body,
 };
 use chrono::Utc;
+use std::env;
+use once_cell::sync::Lazy;
 use crate::error::ApiError;
+
+static HAS_REDIS: Lazy<bool> = Lazy::new(|| {
+    env::var("REDIS_URL").is_ok()
+});
 
 pub async fn timestamp_guard_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Result<impl IntoResponse, ApiError> {
-    if request.method() == Method::OPTIONS {
+    if request.method() == Method::OPTIONS || !*HAS_REDIS {
         return Ok(next.run(request).await);
     }
 

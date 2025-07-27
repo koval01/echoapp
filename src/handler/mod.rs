@@ -1,8 +1,8 @@
 mod health;
-mod user;
+mod telegram;
 
 pub use health::health_checker_handler;
-pub use user::{
-    users_handler_get,
-    user_id_handler_get
+pub use telegram::{
+    channel_preview_handler_get,
+    channel_body_handler_get
 };

@@ -1,3 +1,5 @@
+use std::fmt;
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -13,22 +15,24 @@ use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
 
 use tracing::debug;
-use crate::response::ApiResponse;
-use crate::util::cache::CacheError;
 
-#[allow(dead_code)]
+use crate::{
+    response::ApiResponse, 
+    util::cache::CacheError
+};
+use crate::service::ValidationError;
+
 #[derive(Debug)]
 pub enum ApiError {
     BadRequest,
-    Unauthorized,
+    BadRequestWithMessage(String),
     Forbidden,
     NotFound(String),
     Conflict(String),
-    Timeout,
-    InternalServerError,
     Redis(RunError<RedisError>),
     Reqwest(ReqwestError),
     Serialization(SerdeJsonError),
+    SelectorParseError(String),
     Custom(StatusCode, String),
 }
 
@@ -36,15 +40,14 @@ impl ApiError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             ApiError::BadRequest => StatusCode::BAD_REQUEST,
-            ApiError::Unauthorized => StatusCode::UNAUTHORIZED,
+            ApiError::BadRequestWithMessage(_) => StatusCode::BAD_REQUEST,
             ApiError::Forbidden => StatusCode::FORBIDDEN,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::Conflict(_) => StatusCode::CONFLICT,
-            ApiError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-            ApiError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Redis(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Reqwest(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::SelectorParseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Custom(code, _) => *code,
         }
     }
@@ -52,17 +55,22 @@ impl ApiError {
     pub fn message(&self) -> String {
         match self {
             ApiError::BadRequest => "bad request".to_string(),
-            ApiError::Unauthorized => "unauthorised".to_string(),
+            ApiError::BadRequestWithMessage(msg) => msg.clone(),
             ApiError::Forbidden => "forbidden".to_string(),
             ApiError::NotFound(error) => if error.is_empty() { "not found".to_string() } else { error.clone() },
             ApiError::Conflict(error) => if error.is_empty() { "conflict".to_string() } else { error.clone() },
-            ApiError::Timeout => "request timed out".to_string(),
-            ApiError::InternalServerError => "internal error".to_string(),
             ApiError::Redis(error) => format!("redis error: {}", error),
             ApiError::Reqwest(error) => format!("HTTP request error: {}", error),
             ApiError::Serialization(error) => format!("JSON serialization error: {}", error),
+            ApiError::SelectorParseError(error) => format!("Selector parse error: {}", error),
             ApiError::Custom(_, message) => message.clone(),
         }
+    }
+}
+
+impl From<fn() -> ApiError> for ApiError {
+    fn from(_: fn() -> ApiError) -> Self {
+        ApiError::BadRequest
     }
 }
 
@@ -87,6 +95,19 @@ impl From<SerdeJsonError> for ApiError {
     }
 }
 
+impl From<ValidationError> for ApiError {
+    fn from(error: ValidationError) -> Self {
+        ApiError::BadRequestWithMessage(error.to_string())
+    }
+}
+
+impl<'a> From<scraper::error::SelectorErrorKind<'a>> for ApiError {
+    fn from(error: scraper::error::SelectorErrorKind<'a>) -> Self {
+        debug!("Selector parse error: {:#?}", error);
+        ApiError::SelectorParseError(format!("{:?}", error))
+    }
+}
+
 impl From<QueryRejection> for ApiError {
     fn from(error: QueryRejection) -> Self {
         debug!("{:#?}", error);
@@ -105,9 +126,10 @@ impl From<CacheError> for ApiError {
     fn from(err: CacheError) -> Self {
         match err {
             CacheError::Redis(e) => ApiError::Redis(e),
-            CacheError::Reqwest(e) => ApiError::Reqwest(e),
             CacheError::Serialization(e) => ApiError::Serialization(e),
             CacheError::NotFound => ApiError::NotFound("Resource not found".to_string()),
+            CacheError::FetchError(e) => ApiError::Custom(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            CacheError::CachedError(c, e) => ApiError::Custom(c, e.to_string()),
         }
     }
 }
@@ -116,7 +138,13 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = self.status_code();
         let message = self.message();
-        let response = ApiResponse::<()>::error(&message, status);
+        let response = ApiResponse::<()>::error(Some(&message), status);
         (status, Json(response)).into_response()
+    }
+}
+
+impl fmt::Display for ApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message())
     }
 }

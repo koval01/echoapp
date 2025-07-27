@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  rust-backend:
-    image: koval01/rust-backend:latest
+  trustme:
+    image: koval01/trustme:latest
     container_name: rust-api
     ports:
       - "8000:8000"

@@ -1,7 +1,12 @@
 use serde::Serialize;
-use crate::model::User;
+use crate::model::{Body, Preview};
 
 #[derive(Serialize)]
-pub struct UserResponseData {
-    pub user: User,
+pub struct ChannelPreviewResponseData {
+    pub channel: Preview,
+}
+
+#[derive(Serialize)]
+pub struct ChannelBodyResponseData {
+    pub body: Body,
 }

@@ -35,21 +35,38 @@ use sentry_tower::NewSentryLayer;
 
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
-use crate::middleware::{cache_header_middleware, process_time_middleware};
 
 #[allow(warnings, unused)]
-use crate::middleware::request_id_middleware;
+use crate::middleware::{request_id_middleware, cache_header_middleware, process_time_middleware};
+use crate::service::TelegramRequest;
+use crate::util::cache::CacheBackend;
+
+#[cfg(target_os = "windows")]
+fn set_console_utf8() {
+    use windows::Win32::System::Console::SetConsoleOutputCP;
+    use windows::Win32::Globalization::CP_UTF8;
+
+    unsafe {
+        let _ = SetConsoleOutputCP(CP_UTF8);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_console_utf8() {}
 
 #[tokio::main]
 async fn main() {
+    set_console_utf8();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("rust-backend::middleware=debug")
+                .parse("trustme::middleware=debug")
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
+        .with_ansi(false)
         .init();
 
     let _dsn = env::var("SENTRY_DSN").unwrap_or_else(|_| "".to_string());
@@ -79,50 +96,62 @@ async fn main() {
         .max_capacity(16_000)
         .build();
 
-    let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost".to_string());
-    let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
-    let redis_pool = bb8::Pool::builder()
-        .max_size((num_cpus::get() * 10) as u32)
-        .min_idle((num_cpus::get() * 2 + 1) as u32)
-        .max_lifetime(None)
-        .connection_timeout(Duration::from_millis(2000))
-        .idle_timeout(Some(Duration::from_secs(60)))
-        .build(redis_manager)
-        .await
-        .unwrap();
+    let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
+        let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
+        let redis_pool = bb8::Pool::builder()
+            .max_size((num_cpus::get() * 10) as u32)
+            .min_idle((num_cpus::get() * 2 + 1) as u32)
+            .max_lifetime(None)
+            .connection_timeout(Duration::from_millis(2000))
+            .idle_timeout(Some(Duration::from_secs(60)))
+            .build(redis_manager)
+            .await
+            .unwrap();
 
-    {
-        let mut conn = redis_pool.get().await.unwrap();
-        let _: () = conn.set("health_check", "ok").await.unwrap();
-    }
+        // Perform health check
+        {
+            let mut conn = redis_pool.get().await.unwrap();
+            let _: () = conn.set("health_check", "ok").await.unwrap();
+        }
+
+        CacheBackend::Redis(redis_pool)
+    } else {
+        CacheBackend::Disabled
+    };
 
     let http_client = ClientBuilder::new()
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(10))
         .pool_max_idle_per_host(10)
         .pool_idle_timeout(Duration::from_secs(60))
-        .user_agent(format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("{}/{} (https://github.com/koval01/{}; yaroslav@koval.page)", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_NAME")))
         .gzip(true)
         .build()
         .expect("Failed to create HTTP client");
+
+    let telegram_client = TelegramRequest::with_defaults(http_client.clone());
 
     let middleware_stack = ServiceBuilder::new()
         .layer(NewSentryLayer::new_from_top())
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .layer(tower::limit::ConcurrencyLimitLayer::new(1000))
-        .layer(axum::middleware::from_fn(process_time_middleware))
-        .layer(axum::middleware::from_fn(cache_header_middleware));
+        .layer(tower::limit::ConcurrencyLimitLayer::new(1000));
+    
+    #[cfg(debug_assertions)]
+    let middleware_stack = middleware_stack
+        .layer(axum::middleware::from_fn(process_time_middleware));
 
     #[cfg(not(debug_assertions))]
     let middleware_stack = middleware_stack
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(axum::middleware::from_fn(request_id_middleware))
+        .layer(axum::middleware::from_fn(cache_header_middleware));
 
     let app = create_router()
         .layer(middleware_stack)
-        .layer(Extension(redis_pool))
+        .layer(Extension(redis_backend))
         .layer(Extension(moka_cache))
-        .layer(Extension(http_client));
+        .layer(Extension(http_client))
+        .layer(Extension(telegram_client));
 
     let _bind = env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:8000".to_string());
     let listener = tokio::net::TcpListener::bind(&_bind)

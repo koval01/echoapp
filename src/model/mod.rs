@@ -1,3 +1,5 @@
-mod user;
+mod channel;
+mod body;
 
-pub use user::User;
+pub use channel::Preview;
+pub use body::*;
