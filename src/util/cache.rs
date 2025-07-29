@@ -57,6 +57,7 @@ pub struct CacheWrapper<T> {
     _phantom: std::marker::PhantomData<T>, // Marker for generic type T
 }
 
+#[allow(dead_code)]
 impl<T> CacheWrapper<T>
 where
     T: Serialize + DeserializeOwned + Send + Sync,

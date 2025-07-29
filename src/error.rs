@@ -20,9 +20,9 @@ use crate::{
     response::ApiResponse, 
     util::cache::CacheError
 };
-use crate::service::ValidationError;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ApiError {
     BadRequest,
     BadRequestWithMessage(String),
@@ -92,12 +92,6 @@ impl From<SerdeJsonError> for ApiError {
     fn from(error: SerdeJsonError) -> Self {
         debug!("Serialization error: {:#?}", error);
         ApiError::Serialization(error)
-    }
-}
-
-impl From<ValidationError> for ApiError {
-    fn from(error: ValidationError) -> Self {
-        ApiError::BadRequestWithMessage(error.to_string())
     }
 }
 

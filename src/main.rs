@@ -16,8 +16,6 @@ use redis::AsyncCommands;
 use moka::future::Cache;
 use reqwest::ClientBuilder;
 
-mod service;
-
 use axum::{
     http::{header::{ACCEPT, CONTENT_TYPE}, HeaderName, HeaderValue, Method},
     extract::Extension,
@@ -37,32 +35,16 @@ use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[allow(warnings, unused)]
-use crate::middleware::{request_id_middleware, cache_header_middleware, process_time_middleware};
-use crate::service::TelegramRequest;
+use crate::middleware::{request_id_middleware, process_time_middleware};
 use crate::util::cache::CacheBackend;
-
-#[cfg(target_os = "windows")]
-fn set_console_utf8() {
-    use windows::Win32::System::Console::SetConsoleOutputCP;
-    use windows::Win32::Globalization::CP_UTF8;
-
-    unsafe {
-        let _ = SetConsoleOutputCP(CP_UTF8);
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn set_console_utf8() {}
 
 #[tokio::main]
 async fn main() {
-    set_console_utf8();
-
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("trustme::middleware=debug")
+                .parse("panel=info,tower_http=info")
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
@@ -129,29 +111,21 @@ async fn main() {
         .build()
         .expect("Failed to create HTTP client");
 
-    let telegram_client = TelegramRequest::with_defaults(http_client.clone());
-
     let middleware_stack = ServiceBuilder::new()
         .layer(NewSentryLayer::new_from_top())
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .layer(tower::limit::ConcurrencyLimitLayer::new(1000));
-    
-    #[cfg(debug_assertions)]
-    let middleware_stack = middleware_stack
-        .layer(axum::middleware::from_fn(process_time_middleware));
 
-    #[cfg(not(debug_assertions))]
     let middleware_stack = middleware_stack
-        .layer(axum::middleware::from_fn(request_id_middleware))
-        .layer(axum::middleware::from_fn(cache_header_middleware));
+        .layer(axum::middleware::from_fn(process_time_middleware))
+        .layer(axum::middleware::from_fn(request_id_middleware));
 
     let app = create_router()
         .layer(middleware_stack)
         .layer(Extension(redis_backend))
         .layer(Extension(moka_cache))
-        .layer(Extension(http_client))
-        .layer(Extension(telegram_client));
+        .layer(Extension(http_client));
 
     let _bind = env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:8000".to_string());
     let listener = tokio::net::TcpListener::bind(&_bind)

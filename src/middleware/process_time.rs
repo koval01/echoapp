@@ -14,8 +14,14 @@ pub async fn process_time_middleware(
 
     let response = next.run(request).await;
 
-    let process_time = start_time.elapsed().as_millis();
-    let process_time_header = format!("{} ms", process_time);
+    let duration = start_time.elapsed();
+    let process_time_ms = duration.as_micros() as f64 / 1000.0;
+
+    let process_time_header = if process_time_ms < 10.0 {
+        format!("{:.1} ms", process_time_ms)
+    } else {
+        format!("{:.0} ms", process_time_ms)
+    };
 
     let mut response = response;
     response.headers_mut().insert(

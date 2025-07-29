@@ -3,6 +3,7 @@ use serde::Serialize;
 
 #[derive(Serialize)]
 #[serde(untagged)]
+#[allow(dead_code)]
 pub enum ApiData<T> {
     Data(T)
 }
@@ -18,6 +19,7 @@ pub struct ApiResponse<T> {
     pub code: Option<u16>,
 }
 
+#[allow(dead_code)]
 impl<T: Serialize> ApiResponse<T> {
     pub fn success(data: T) -> Self {
         Self {
