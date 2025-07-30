@@ -2,4 +2,4 @@
 /src/prisma.rs
 
 /tailwind/node_modules
-
+/migration/target
