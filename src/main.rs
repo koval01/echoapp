@@ -42,6 +42,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 use crate::middleware::{request_id_middleware, process_time_middleware};
 use crate::util::cache::CacheBackend;
 
+use migration::{Migrator, MigratorTrait};
 use crate::config::Config;
 
 pub struct AppState {
@@ -102,6 +103,7 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
     let shared_db = Arc::new(db);
+    Migrator::up(&connection, None).await?;
 
     let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
         let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
