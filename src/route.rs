@@ -9,7 +9,9 @@ use axum::routing::post;
 use axum_messages::MessagesManagerLayer;
 use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
-
+use tower_sessions::{CachingSessionStore, SessionManagerLayer};
+use tower_sessions_moka_store::MokaStore;
+use tower_sessions_seaorm_store::PostgresStore;
 use crate::{handler::{
     health_checker_handler,
     view::{
@@ -20,7 +22,10 @@ use crate::{handler::{
 }, AppState};
 use crate::handler::view::auth_middleware;
 
-pub async fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
+pub async fn create_router(
+    app_state: Arc<RwLock<AppState>>,
+    session_layer: SessionManagerLayer<CachingSessionStore<MokaStore, PostgresStore>>,
+) -> Router {
     let assets_path = env::current_dir().unwrap();
 
     let public_routes = Router::new()
@@ -61,7 +66,8 @@ pub async fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
             ServeDir::new(format!("{}/assets", assets_path.to_str().unwrap())),
         )
         .fallback(handler_404)
-        .layer(MessagesManagerLayer);
+        .layer(MessagesManagerLayer)
+        .layer(session_layer);
 
     // Merge routes and add shared state and fallback
     Router::new()

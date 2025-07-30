@@ -162,7 +162,6 @@ async fn main() {
         .layer(NewSentryLayer::new_from_top())
         .layer(trace_layer)
         .layer(cors)
-        .layer(session_layer)
         .layer(tower::limit::ConcurrencyLimitLayer::new(1000));
 
     let middleware_stack = middleware_stack
@@ -173,7 +172,7 @@ async fn main() {
         config,
     }));
 
-    let app = create_router(app_state.clone()).await
+    let app = create_router(app_state.clone(), session_layer).await
         .layer(middleware_stack)
         .layer(compression_layer)
         .layer(Extension(shared_db))
