@@ -6,11 +6,7 @@ use axum::{
 };
 use axum_messages::MessagesManagerLayer;
 
-use sea_orm::sqlx::PgPool;
 use tower_http::services::ServeDir;
-use tower_sessions::{CachingSessionStore, SessionManagerLayer};
-use tower_sessions_moka_store::MokaStore;
-use tower_sessions_sqlx_store::PostgresStore;
 
 use crate::{
     handler::{
@@ -28,13 +24,6 @@ pub async fn create_router() -> Router {
 
     let public_routes = Router::new()
         .route("/healthz", get(health_checker_handler));
-
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost".to_string());
-    let pool = PgPool::connect(&database_url).await.unwrap();
-    let session_store = PostgresStore::new(pool);
-    let moka_store = MokaStore::new(Some(2_000));
-    let session_store = CachingSessionStore::new(moka_store, session_store);
-    let session_layer = SessionManagerLayer::new(session_store).with_secure(false);
 
     let pages_router = Router::new()
         .route("/", get(home_handler))
@@ -71,8 +60,7 @@ pub async fn create_router() -> Router {
             ServeDir::new(format!("{}/assets", assets_path.to_str().unwrap())),
         )
         .fallback(handler_404)
-        .layer(MessagesManagerLayer)
-        .layer(session_layer);
+        .layer(MessagesManagerLayer);
 
     // Merge routes and add shared state and fallback
     Router::new()

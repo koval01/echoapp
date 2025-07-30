@@ -31,11 +31,13 @@ use tower_http::{
     trace::TraceLayer,
     compression::{CompressionLayer, DefaultPredicate}
 };
+use tower_sessions::{CachingSessionStore, Expiry, SessionManagerLayer};
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
 use tower_http::classify::ServerErrorsFailureClass;
-use tracing::info;
+use tower_sessions_moka_store::MokaStore;
+use tower_sessions_seaorm_store::PostgresStore;
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[allow(warnings, unused)]
@@ -103,7 +105,12 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
     let _ = Migrator::up(&db, None).await.unwrap();
+    let session_store = PostgresStore::new(db.clone());
     let shared_db = Arc::new(db);
+
+    let moka_store = MokaStore::new(Some(2_000));
+    let session_store = CachingSessionStore::new(moka_store, session_store);
+    let session_layer = SessionManagerLayer::new(session_store).with_secure(false);
 
     let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
         let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
@@ -153,6 +160,7 @@ async fn main() {
         .layer(NewSentryLayer::new_from_top())
         .layer(trace_layer)
         .layer(cors)
+        .layer(session_layer)
         .layer(tower::limit::ConcurrencyLimitLayer::new(1000));
 
     let middleware_stack = middleware_stack
