@@ -9,7 +9,7 @@ use time::Duration;
 use tokio::sync::RwLock;
 use tower_sessions::Session;
 use uuid::Uuid;
-use crate::entities::user::{ActiveModel, Entity as User};
+use entities::user::{ActiveModel, Entity as User};
 
 use crate::{
     handler::view::set_tzone_in_session,
@@ -54,12 +54,8 @@ pub async fn register_user_handler(
         ..Default::default()
     };
 
-    println!("{:#?}", user);
-
     let result = user.insert(&*db)
         .await;
-
-    println!("{:#?}", result);
 
     if let Err(err) = result {
         let err = format!("Something went wrong: {}", err);

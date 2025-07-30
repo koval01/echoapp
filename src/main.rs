@@ -5,7 +5,6 @@ mod handler;
 mod model;
 mod response;
 mod util;
-mod entities;
 mod database;
 mod config;
 
@@ -102,8 +101,8 @@ async fn main() {
     let db = database::establish_connection(&database_url)
         .await
         .expect("Failed to connect to database");
+    let _ = Migrator::up(&db, None).await.unwrap();
     let shared_db = Arc::new(db);
-    Migrator::up(&connection, None).await?;
 
     let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
         let redis_manager = RedisConnectionManager::new(redis_url).unwrap();

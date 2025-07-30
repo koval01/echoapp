@@ -1,4 +1,3 @@
-// migrations/YYYYMMDDHHMMSS_create_users_table.rs
 use sea_orm_migration::prelude::*;
 
 pub struct Migration;
@@ -25,7 +24,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(User::Username).string().not_null().unique_key())
                     .col(ColumnDef::new(User::Email).string().not_null().unique_key())
-                    .col(ColumnDef::new(User::Bio).text())
+                    .col(ColumnDef::new(User::Password).text())
                     .col(
                         ColumnDef::new(User::CreatedAt)
                             .timestamp_with_time_zone()
@@ -60,11 +59,12 @@ impl MigrationTrait for Migration {
 
 #[derive(Iden)]
 enum User {
+    #[iden = "users"]
     Table,
     Id,
     Username,
     Email,
-    Bio,
+    Password,
     CreatedAt,
     UpdatedAt,
 }

@@ -12,7 +12,7 @@ use jsonwebtoken::{decode, DecodingKey, Validation};
 use sea_orm::{DatabaseConnection, EntityTrait};
 use tower_sessions::Session;
 use tokio::sync::RwLock;
-use crate::entities::user::Entity as UserModel;
+use entities::user::Entity as UserModel;
 
 use crate::handler::view::{set_flag_in_session, Error401Template, HtmlTemplate};
 use crate::model::jwt::TokenClaims;
