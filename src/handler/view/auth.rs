@@ -17,7 +17,7 @@ use crate::{
     model::jwt::TokenClaims,
     AppState,
 };
-use crate::service::check_email_password;
+use crate::service::{check_email_password, create_user};
 use super::{
     get_messages, set_flag_in_session, Error404Template, Error500Template, HomeTemplate,
     HtmlTemplate, LoginTemplate, RegisterTemplate, FROM_PROTECTED_KEY,
@@ -46,15 +46,12 @@ pub async fn register_user_handler(
     Extension(db): Extension<Arc<DatabaseConnection>>,
     Form(form_data): Form<RegisterUserSchema>,
 ) -> impl IntoResponse {
-    let user = ActiveModel {
-        id: Set(Uuid::new_v4()),
-        username: Set(form_data.username),
-        email: Set(form_data.email),
-        password: Set(form_data.password),
-        ..Default::default()
-    };
-
-    let result = user.insert(&*db)
+    let result = create_user(
+        form_data.email,
+        form_data.password,
+        form_data.username,
+        &db,
+    )
         .await;
 
     if let Err(err) = result {
@@ -139,18 +136,6 @@ pub async fn login_user_handler(
         .http_only(true);
 
     let headers = AppendHeaders([(SET_COOKIE, cookie.to_string())]);
-
-    // let result = get_all_todos(user_id, &lock.pool).await;
-    // if let Err(e) = result {
-    //     return HtmlTemplate(Error500Template {
-    //         title: "Error 500".to_string(),
-    //         reason: e.to_string(),
-    //         link: "/".to_string(),
-    //         is_error: true,
-    //         ..Default::default()
-    //     })
-    //         .into_response();
-    // }
 
     messages.success("You have successfully logged in!!");
 
