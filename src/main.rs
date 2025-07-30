@@ -5,8 +5,11 @@ mod handler;
 mod model;
 mod response;
 mod util;
+mod entities;
+mod database;
 
 use std::env;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bb8_redis::RedisConnectionManager;
@@ -86,6 +89,13 @@ async fn main() {
         .max_capacity(16_000)
         .build();
 
+    let database_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set in .env file");
+    let db = database::establish_connection(&database_url)
+        .await
+        .expect("Failed to connect to database");
+    let shared_db = Arc::new(db);
+
     let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
         let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
         let redis_pool = bb8::Pool::builder()
@@ -132,6 +142,7 @@ async fn main() {
     let app = create_router().await
         .layer(middleware_stack)
         .layer(compression_layer)
+        .layer(Extension(shared_db))
         .layer(Extension(redis_backend))
         .layer(Extension(moka_cache))
         .layer(Extension(http_client));
