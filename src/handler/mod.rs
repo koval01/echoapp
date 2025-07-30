@@ -1,4 +1,4 @@
 mod health;
-pub(crate) mod view;
+pub mod view;
 
 pub use health::health_checker_handler;

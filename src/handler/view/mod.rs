@@ -1,5 +1,6 @@
 pub mod notfound;
 pub mod home;
+mod middleware;
 
 use chrono::{Local, NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
@@ -18,7 +19,7 @@ const FROM_PROTECTED_KEY: &str = "from_protected";
 const TZONE_KEY: &str = "time_zone";
 
 /// Set flag in session.
-async fn set_flag_in_session(session: &Session, from_protected: bool) {
+pub async fn set_flag_in_session(session: &Session, from_protected: bool) {
     session
         .insert(FROM_PROTECTED_KEY, from_protected)
         .await
@@ -76,7 +77,7 @@ pub fn convert_datetime(tzone: &str, dt: NaiveDateTime) -> String {
 
 /// A wrapper type that we'll use to encapsulate HTML parsed
 /// by askama into valid HTML for axum to serve.
-struct HtmlTemplate<T>(T);
+pub struct HtmlTemplate<T>(pub T);
 
 /// Allows us to convert Askama HTML templates into valid HTML
 /// for axum to serve in the response.
@@ -102,7 +103,7 @@ where
 /// Home page template
 #[derive(Default, Template)]
 #[template(path = "auth/home.html")]
-struct HomeTemplate {
+pub struct HomeTemplate {
     title: String,
     username: String,
     messages_status: String,
@@ -114,7 +115,7 @@ struct HomeTemplate {
 /// Register page template
 #[derive(Default, Template)]
 #[template(path = "auth/register.html")]
-struct RegisterTemplate {
+pub struct RegisterTemplate {
     title: String,
     username: String,
     messages_status: String,
@@ -126,7 +127,7 @@ struct RegisterTemplate {
 /// Login page template
 #[derive(Default, Template)]
 #[template(path = "auth/login.html")]
-struct LoginTemplate {
+pub struct LoginTemplate {
     title: String,
     username: String,
     messages_status: String,
@@ -138,7 +139,7 @@ struct LoginTemplate {
 /// Error 400 page template
 #[derive(Default, Template)]
 #[template(path = "error/error_400.html")]
-struct Error400Template {
+pub struct Error400Template {
     title: String,
     username: String,
     reason: String,
@@ -151,7 +152,7 @@ struct Error400Template {
 /// Error 401 page template
 #[derive(Default, Template)]
 #[template(path = "error/error_401.html")]
-struct Error401Template {
+pub struct Error401Template {
     title: String,
     username: String,
     reason: String,
@@ -164,7 +165,7 @@ struct Error401Template {
 /// Error 404 page template
 #[derive(Default, Template)]
 #[template(path = "error/error_404.html")]
-struct Error404Template {
+pub struct Error404Template {
     title: String,
     username: String,
     reason: String,
@@ -178,7 +179,7 @@ struct Error404Template {
 /// Error 500 page template
 #[derive(Default, Template)]
 #[template(path = "error/error_500.html")]
-struct Error500Template {
+pub struct Error500Template {
     title: String,
     username: String,
     reason: String,
