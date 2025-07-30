@@ -11,6 +11,9 @@ panic = 'abort'
 strip = true
 debug = false
 
+[workspace]
+members = [".", "entities", "migration"]
+
 [dependencies]
 axum = "0.8"
 axum-messages = "0.8"
@@ -48,6 +51,8 @@ log = "0.4.27"
 sea-orm = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 jsonwebtoken = "9.3"
 time = "0.3.37"
+migration = { path = "migration" }
+entities = { path = "entities" }
 
 [dev-dependencies]
 tokio = { version = "1.46", features = ["macros", "rt-multi-thread"] }
