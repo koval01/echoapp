@@ -34,6 +34,7 @@ use tower_http::{
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
+use tower_http::classify::ServerErrorsFailureClass;
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -54,7 +55,7 @@ async fn main() {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("panel=info,tower_http=info")
+                .parse("") // panel=info,tower_http=info
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
@@ -137,9 +138,20 @@ async fn main() {
         .build()
         .expect("Failed to create HTTP client");
 
+    let trace_layer = TraceLayer::new_for_http()
+        .on_failure(
+            |error: ServerErrorsFailureClass, latency: std::time::Duration, _span: &tracing::Span| {
+                tracing::error!(
+                "Error request processing (latency: {:?}): {:?}",
+                latency,
+                error
+            );
+            },
+        );
+
     let middleware_stack = ServiceBuilder::new()
         .layer(NewSentryLayer::new_from_top())
-        .layer(TraceLayer::new_for_http())
+        .layer(trace_layer)
         .layer(cors)
         .layer(tower::limit::ConcurrencyLimitLayer::new(1000));
 
@@ -160,7 +172,7 @@ async fn main() {
         .await
         .unwrap();
 
-    info!("🚀 Server started successfully on {}", _bind);
+    println!("🚀 Server started successfully on {}", _bind);
 
     axum::serve(
         listener,
