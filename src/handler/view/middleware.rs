@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use uuid::Uuid;
 
 use axum::{
     extract::{Request, Extension, State},
@@ -9,14 +8,12 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use jsonwebtoken::{decode, DecodingKey, Validation};
-use sea_orm::{DatabaseConnection, EntityTrait};
-use tower_sessions::Session;
+use sea_orm::DatabaseConnection;
 use tokio::sync::RwLock;
-use entities::user::Entity as UserModel;
+use tower_sessions::Session;
 
-use crate::handler::view::{set_flag_in_session, Error401Template, HtmlTemplate};
-use crate::model::jwt::TokenClaims;
-use crate::AppState;
+use super::{set_flag_in_session, Error401Template, HtmlTemplate};
+use crate::{model::jwt::TokenClaims, service::get_user_by_id, AppState};
 
 /// Middleware to manage authorization.
 pub async fn auth_middleware(
@@ -47,75 +44,67 @@ pub async fn auth_middleware(
         tk
     } else {
         set_flag_in_session(&session, false).await;
-        return Err(HtmlTemplate(Error401Template {
+
+        Err(HtmlTemplate(Error401Template {
             title: "Error 401".to_string(),
             reason: "You are not logged in, please provide token".to_string(),
             is_error: true,
             ..Default::default()
         })
-            .into_response());
+            .into_response())?
     };
 
-    let claims = match decode::<TokenClaims>(
+    let claims = if let Ok(clm) = decode::<TokenClaims>(
         &token,
         &DecodingKey::from_secret(&state.read().await.config.jwt_secret.as_ref()),
         &Validation::default(),
     ) {
-        Ok(token_data) => token_data.claims,
-        Err(_) => {
-            set_flag_in_session(&session, false).await;
-            return Err(HtmlTemplate(Error401Template {
-                title: "Error 401".to_string(),
-                reason: "Invalid token".to_string(),
-                is_error: true,
-                ..Default::default()
-            })
-                .into_response());
-        }
+        clm.claims
+    } else {
+        set_flag_in_session(&session, false).await;
+
+        Err(HtmlTemplate(Error401Template {
+            title: "Error 401".to_string(),
+            reason: "Invalid token".to_string(),
+            is_error: true,
+            ..Default::default()
+        })
+            .into_response())?
     };
 
-    // Convert the string to Uuid
-    let user_id = match Uuid::parse_str(&claims.sub) {
-        Ok(id) => id,
-        Err(_) => {
-            set_flag_in_session(&session, false).await;
-            return Err(HtmlTemplate(Error401Template {
-                title: "Error 401".to_string(),
-                reason: "Invalid user ID format".to_string(),
-                is_error: true,
-                ..Default::default()
-            })
-                .into_response());
-        }
+    let user_id = &claims.sub;
+
+    let result = get_user_by_id(user_id, &db).await;
+
+    if let Err(e) = result.clone() {
+        set_flag_in_session(&session, false).await;
+
+        Err(HtmlTemplate(Error401Template {
+            title: "Error 401".to_string(),
+            reason: e,
+            is_error: true,
+            ..Default::default()
+        })
+            .into_response())?
     };
 
-    // Fetch user from a database
-    let user = match UserModel::find_by_id(user_id).one(&*db).await {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            set_flag_in_session(&session, false).await;
-            return Err(HtmlTemplate(Error401Template {
-                title: "Error 401".to_string(),
-                reason: "The user belonging to this token no longer exists".to_string(),
-                is_error: true,
-                ..Default::default()
-            })
-                .into_response());
-        }
-        Err(e) => {
-            set_flag_in_session(&session, false).await;
-            return Err(HtmlTemplate(Error401Template {
-                title: "Error 401".to_string(),
-                reason: format!("Database error: {}", e),
-                is_error: true,
-                ..Default::default()
-            })
-                .into_response());
-        }
+    let user = if let Some(u) = result.unwrap() {
+        u
+    } else {
+        set_flag_in_session(&session, false).await;
+
+        Err(HtmlTemplate(Error401Template {
+            title: "Error 401".to_string(),
+            reason: "The user belonging to this token no longer exists".to_string(),
+            is_error: true,
+            ..Default::default()
+        })
+            .into_response())?
     };
 
     set_flag_in_session(&session, true).await;
+
     req.extensions_mut().insert(user);
 
-    Ok(next.run(req).await)
+    Ok::<Response, _>(next.run(req).await)
 }

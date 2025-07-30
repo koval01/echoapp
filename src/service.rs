@@ -77,3 +77,16 @@ pub async fn create_user(
 
     Ok(user)
 }
+
+pub async fn get_user_by_id(
+    user_id: &str,
+    db: &Arc<DatabaseConnection>,
+) -> Result<Option<user::Model>, String> {
+    let uuid = Uuid::parse_str(user_id)
+        .map_err(|e| format!("invalid UUID: {}", e))?;
+
+    user::Entity::find_by_id(uuid)
+        .one(db.as_ref())
+        .await
+        .map_err(|e| format!("error fetching user from database: {}", e))
+}
