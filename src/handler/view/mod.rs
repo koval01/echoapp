@@ -5,13 +5,12 @@ pub mod auth;
 
 use chrono::{Local, NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
-// pub use middleware::auth_middleware;
+pub use middleware::auth_middleware;
 
 use askama::Template;
 use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    Json,
 };
 use axum_messages::Messages;
 use tower_sessions::Session;
@@ -19,7 +18,7 @@ use tower_sessions::Session;
 const FROM_PROTECTED_KEY: &str = "from_protected";
 const TZONE_KEY: &str = "time_zone";
 
-/// Set flag in session.
+/// Set the flag in session.
 pub async fn set_flag_in_session(session: &Session, from_protected: bool) {
     session
         .insert(FROM_PROTECTED_KEY, from_protected)
@@ -67,14 +66,6 @@ pub fn convert_datetime(tzone: &str, dt: NaiveDateTime) -> String {
 
     format!("{}{}", first_part, last_part)
 }
-
-/* --------------------------------------- */
-/* ----------- enregion: Utils ----------- */
-/* --------------------------------------- */
-
-/* --------------------------------------- */
-/* ------ region: Template Rendering ----- */
-/* --------------------------------------- */
 
 /// A wrapper type that we'll use to encapsulate HTML parsed
 /// by askama into valid HTML for axum to serve.
