@@ -3,3 +3,5 @@
 
 /tailwind/node_modules
 /migration/target
+
+.env
