@@ -31,13 +31,15 @@ use tower_http::{
     trace::TraceLayer,
     compression::{CompressionLayer, DefaultPredicate}
 };
-use tower_sessions::{CachingSessionStore, Expiry, SessionManagerLayer};
+use tower_sessions::{CachingSessionStore, SessionManagerLayer};
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
+
 use tower_http::classify::ServerErrorsFailureClass;
 use tower_sessions_moka_store::MokaStore;
 use tower_sessions_seaorm_store::PostgresStore;
+
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[allow(warnings, unused)]
@@ -140,14 +142,14 @@ async fn main() {
         .connect_timeout(Duration::from_secs(10))
         .pool_max_idle_per_host(10)
         .pool_idle_timeout(Duration::from_secs(60))
-        .user_agent(format!("{}/{} (https://github.com/koval01/{}; yaroslav@koval.page)", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_NAME")))
+        .user_agent(format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
         .gzip(true)
         .build()
         .expect("Failed to create HTTP client");
 
     let trace_layer = TraceLayer::new_for_http()
         .on_failure(
-            |error: ServerErrorsFailureClass, latency: std::time::Duration, _span: &tracing::Span| {
+            |error: ServerErrorsFailureClass, latency: Duration, _span: &tracing::Span| {
                 tracing::error!(
                 "Error request processing (latency: {:?}): {:?}",
                 latency,
