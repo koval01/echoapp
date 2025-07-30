@@ -2,7 +2,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use axum::{
-    extract::{Request, Extension},
+    extract::{Request, Extension, State},
     http::header,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -11,16 +11,19 @@ use axum_extra::extract::CookieJar;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use sea_orm::{DatabaseConnection, EntityTrait};
 use tower_sessions::Session;
+use tokio::sync::RwLock;
 use crate::entities::user::Entity as UserModel;
 
 use crate::handler::view::{set_flag_in_session, Error401Template, HtmlTemplate};
 use crate::model::jwt::TokenClaims;
+use crate::AppState;
 
 /// Middleware to manage authorization.
 pub async fn auth_middleware(
     cookie_jar: CookieJar,
     session: Session,
     Extension(db): Extension<Arc<DatabaseConnection>>,
+    State(state): State<Arc<RwLock<AppState>>>,
     mut req: Request,
     next: Next,
 ) -> Result<Response, Response> {
@@ -55,7 +58,7 @@ pub async fn auth_middleware(
 
     let claims = match decode::<TokenClaims>(
         &token,
-        &DecodingKey::from_secret("hello".as_ref()),
+        &DecodingKey::from_secret(&state.read().await.config.jwt_secret.as_ref()),
         &Validation::default(),
     ) {
         Ok(token_data) => token_data.claims,
@@ -86,7 +89,7 @@ pub async fn auth_middleware(
         }
     };
 
-    // Fetch user from database
+    // Fetch user from a database
     let user = match UserModel::find_by_id(user_id).one(&*db).await {
         Ok(Some(user)) => user,
         Ok(None) => {

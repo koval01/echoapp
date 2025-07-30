@@ -7,6 +7,7 @@ mod response;
 mod util;
 mod entities;
 mod database;
+mod config;
 
 use std::env;
 use std::sync::Arc;
@@ -40,6 +41,12 @@ use tracing_subscriber::{fmt, EnvFilter};
 #[allow(warnings, unused)]
 use crate::middleware::{request_id_middleware, process_time_middleware};
 use crate::util::cache::CacheBackend;
+
+use crate::config::Config;
+
+pub struct AppState {
+    pub config: Config,
+}
 
 #[tokio::main]
 async fn main() {
