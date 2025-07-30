@@ -1,3 +1,5 @@
+use std::env;
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub jwt_secret: String,
@@ -7,9 +9,9 @@ pub struct Config {
 
 impl Config {
     pub fn init() -> Self {
-        let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-        let jwt_expires_in = std::env::var("JWT_EXPIRED_IN").expect("JWT_EXPIRED_IN must be set");
-        let jwt_maxage = std::env::var("JWT_MAXAGE").expect("JWT_MAXAGE must be set");
+        let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+        let jwt_expires_in = env::var("JWT_EXPIRED_IN").expect("JWT_EXPIRED_IN must be set");
+        let jwt_maxage = env::var("JWT_MAXAGE").expect("JWT_MAXAGE must be set");
 
         Self {
             jwt_secret,
