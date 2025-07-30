@@ -25,12 +25,12 @@ use route::create_router;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::CorsLayer,
-    trace::TraceLayer
+    trace::TraceLayer,
+    compression::{CompressionLayer, DefaultPredicate}
 };
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
-
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -72,6 +72,14 @@ async fn main() {
             CONTENT_TYPE,
             HeaderName::from_static("x-timestamp"),
         ]);
+
+    let predicate = DefaultPredicate::new();
+    let compression_layer: CompressionLayer = CompressionLayer::new()
+        .br(true)
+        .deflate(true)
+        .gzip(true)
+        .zstd(true)
+        .compress_when(predicate);
 
     let moka_cache: Cache<String, String> = Cache::builder()
         .time_to_live(Duration::from_secs(10))
@@ -121,8 +129,9 @@ async fn main() {
         .layer(axum::middleware::from_fn(process_time_middleware))
         .layer(axum::middleware::from_fn(request_id_middleware));
 
-    let app = create_router()
+    let app = create_router().await
         .layer(middleware_stack)
+        .layer(compression_layer)
         .layer(Extension(redis_backend))
         .layer(Extension(moka_cache))
         .layer(Extension(http_client));
