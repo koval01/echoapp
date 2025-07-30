@@ -1,6 +1,7 @@
 pub mod notfound;
 pub mod home;
 mod middleware;
+pub mod auth;
 
 use chrono::{Local, NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
@@ -27,7 +28,7 @@ pub async fn set_flag_in_session(session: &Session, from_protected: bool) {
 }
 
 /// Set tzone in session.
-async fn set_tzone_in_session(session: &Session, tzone: String) {
+pub async fn set_tzone_in_session(session: &Session, tzone: String) {
     session.insert(TZONE_KEY, tzone).await.unwrap();
 }
 

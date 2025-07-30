@@ -17,7 +17,8 @@ use crate::{
         health_checker_handler,
         view::{
             notfound::handler_404,
-            home::home_handler
+            home::home_handler,
+            auth::{register_page_handler, register_user_handler}
         },
     },
 };
@@ -37,10 +38,10 @@ pub async fn create_router() -> Router {
 
     let pages_router = Router::new()
         .route("/", get(home_handler))
-        // .route(
-        //     "/register",
-        //     get(register_page_handler).post(register_user_handler),
-        // )
+        .route(
+            "/register",
+            get(register_page_handler).post(register_user_handler),
+        )
         // .route("/login", get(login_page_handler).post(login_user_handler))
         // .route(
         //     "/todo/list",
