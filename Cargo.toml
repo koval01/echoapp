@@ -53,6 +53,7 @@ jsonwebtoken = "9.3"
 time = "0.3.37"
 migration = { path = "migration" }
 entities = { path = "entities" }
+anyhow = "1.0.98"
 
 [dev-dependencies]
 tokio = { version = "1.46", features = ["macros", "rt-multi-thread"] }

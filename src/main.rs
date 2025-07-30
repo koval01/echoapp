@@ -7,6 +7,7 @@ mod response;
 mod util;
 mod database;
 mod config;
+mod service;
 
 use std::env;
 use std::sync::Arc;
@@ -19,10 +20,7 @@ use redis::AsyncCommands;
 use moka::future::Cache;
 use reqwest::ClientBuilder;
 
-use axum::{
-    http::{header::{ACCEPT, CONTENT_TYPE}, HeaderName, HeaderValue, Method},
-    extract::Extension,
-};
+use axum::{http::{header::{ACCEPT, CONTENT_TYPE}, HeaderName, HeaderValue, Method}, extract::Extension};
 use route::create_router;
 
 use tower::ServiceBuilder;
@@ -35,7 +33,7 @@ use tower_sessions::{CachingSessionStore, SessionManagerLayer};
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
-
+use tokio::sync::RwLock;
 use tower_http::classify::ServerErrorsFailureClass;
 use tower_sessions_moka_store::MokaStore;
 use tower_sessions_seaorm_store::PostgresStore;
@@ -55,6 +53,8 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
+    let config = Config::init();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
@@ -169,7 +169,11 @@ async fn main() {
         .layer(axum::middleware::from_fn(process_time_middleware))
         .layer(axum::middleware::from_fn(request_id_middleware));
 
-    let app = create_router().await
+    let app_state = Arc::new(RwLock::new(AppState {
+        config,
+    }));
+
+    let app = create_router(app_state.clone()).await
         .layer(middleware_stack)
         .layer(compression_layer)
         .layer(Extension(shared_db))
@@ -186,7 +190,7 @@ async fn main() {
 
     axum::serve(
         listener,
-        app.into_make_service_with_connect_info::<std::net::SocketAddr>()
+        app.into_make_service()
     )
         .await
         .unwrap();
