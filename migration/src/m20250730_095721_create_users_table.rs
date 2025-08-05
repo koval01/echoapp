@@ -18,13 +18,16 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(User::Id)
-                            .uuid()
+                            .big_integer()
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(User::Username).string().not_null().unique_key())
-                    .col(ColumnDef::new(User::Email).string().not_null().unique_key())
-                    .col(ColumnDef::new(User::Password).text())
+                    .col(ColumnDef::new(User::FirstName).string().not_null())
+                    .col(ColumnDef::new(User::LastName).string())
+                    .col(ColumnDef::new(User::Username).string())
+                    .col(ColumnDef::new(User::LanguageCode).string().not_null())
+                    .col(ColumnDef::new(User::AllowsWriteToPm).boolean().not_null())
+                    .col(ColumnDef::new(User::PhotoUrl).string())
                     .col(
                         ColumnDef::new(User::CreatedAt)
                             .timestamp_with_time_zone()
@@ -39,15 +42,7 @@ impl MigrationTrait for Migration {
                     )
                     .to_owned(),
             )
-            .await?;
-
-        // Add extension for UUID generation in PostgreSQL
-        manager
-            .get_connection()
-            .execute_unprepared("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
-            .await?;
-
-        Ok(())
+            .await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -57,14 +52,16 @@ impl MigrationTrait for Migration {
     }
 }
 
-#[derive(Iden)]
+#[derive(DeriveIden)]
 enum User {
-    #[iden = "users"]
     Table,
     Id,
+    FirstName,
+    LastName,
     Username,
-    Email,
-    Password,
+    LanguageCode,
+    AllowsWriteToPm,
+    PhotoUrl,
     CreatedAt,
     UpdatedAt,
 }
