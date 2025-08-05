@@ -1169,6 +1169,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "duolang"
+version = "0.1.0"
+dependencies = [
+ "ahash 0.8.12",
+ "anyhow",
+ "argon2",
+ "axum",
+ "base64",
+ "bb8",
+ "bb8-redis",
+ "ed25519-dalek",
+ "entities",
+ "hex",
+ "hmac",
+ "lazy_static",
+ "migration",
+ "moka",
+ "num_cpus",
+ "redis",
+ "reqwest",
+ "scraper",
+ "sea-orm",
+ "sentry",
+ "sentry-tower",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "urlencoding",
+ "uuid",
+]
+
+[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4493,44 +4531,6 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
-]
-
-[[package]]
-name = "trustme"
-version = "0.1.0"
-dependencies = [
- "ahash 0.8.12",
- "anyhow",
- "argon2",
- "axum",
- "base64",
- "bb8",
- "bb8-redis",
- "ed25519-dalek",
- "entities",
- "hex",
- "hmac",
- "lazy_static",
- "migration",
- "moka",
- "num_cpus",
- "redis",
- "reqwest",
- "scraper",
- "sea-orm",
- "sentry",
- "sentry-tower",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "url",
- "urlencoding",
- "uuid",
 ]
 
 [[package]]

@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  DOCKER_IMAGE: koval01/trustme
+  DOCKER_IMAGE: koval01/duolang
 
 permissions:
   contents: read
@@ -48,7 +48,7 @@ jobs:
       - name: Prepare binaries for Docker
         run: |
           mkdir -p docker-files
-          cp target/release/trustme docker-files/
+          cp target/release/duolang docker-files/
 
       - name: Build Docker image for testing
         uses: docker/build-push-action@v5
