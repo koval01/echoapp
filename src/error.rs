@@ -26,6 +26,7 @@ use crate::{
 pub enum ApiError {
     BadRequest,
     BadRequestWithMessage(String),
+    Unauthorized,
     Forbidden,
     NotFound(String),
     Conflict(String),
@@ -41,6 +42,7 @@ impl ApiError {
         match self {
             ApiError::BadRequest => StatusCode::BAD_REQUEST,
             ApiError::BadRequestWithMessage(_) => StatusCode::BAD_REQUEST,
+            ApiError::Unauthorized => StatusCode::UNAUTHORIZED,
             ApiError::Forbidden => StatusCode::FORBIDDEN,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::Conflict(_) => StatusCode::CONFLICT,
@@ -56,6 +58,7 @@ impl ApiError {
         match self {
             ApiError::BadRequest => "bad request".to_string(),
             ApiError::BadRequestWithMessage(msg) => msg.clone(),
+            ApiError::Unauthorized => "unauthorized".to_string(),
             ApiError::Forbidden => "forbidden".to_string(),
             ApiError::NotFound(error) => if error.is_empty() { "not found".to_string() } else { error.clone() },
             ApiError::Conflict(error) => if error.is_empty() { "conflict".to_string() } else { error.clone() },

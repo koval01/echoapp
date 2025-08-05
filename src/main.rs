@@ -8,6 +8,7 @@ mod util;
 mod database;
 mod config;
 mod service;
+mod extractor;
 
 use std::env;
 use std::sync::Arc;
@@ -40,8 +41,7 @@ use tower_sessions_seaorm_store::PostgresStore;
 
 use tracing_subscriber::{fmt, EnvFilter};
 
-#[allow(warnings, unused)]
-use crate::middleware::{request_id_middleware, process_time_middleware};
+use crate::middleware::{request_id_middleware, process_time_middleware, validate_middleware};
 use crate::util::cache::CacheBackend;
 
 use migration::{Migrator, MigratorTrait};
@@ -166,7 +166,8 @@ async fn main() {
 
     let middleware_stack = middleware_stack
         .layer(axum::middleware::from_fn(process_time_middleware))
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(axum::middleware::from_fn(request_id_middleware))
+        .layer(axum::middleware::from_fn(validate_middleware));
 
     let app_state = Arc::new(RwLock::new(AppState {
         config,
