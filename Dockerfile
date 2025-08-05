@@ -6,15 +6,15 @@ RUN apt-get update && \
     apt-get install -y libssl3 libc6 ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-COPY docker-files/duolang /app/duolang
+COPY docker-files/tma-rust /app/tma-rust
 
-RUN chmod +x /app/duolang
+RUN chmod +x /app/tma-rust
 
 ENV RUST_LOG=info
 
 EXPOSE 8000
 
-CMD ["./duolang"]
+CMD ["./tma-rust"]
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
   CMD curl -f http://localhost:8000/healthz || exit 1

@@ -60,7 +60,7 @@ async fn main() {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("") // duolang=info,tower_http=info
+                .parse("") // tma-rust=info,tower_http=info
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
@@ -98,7 +98,7 @@ async fn main() {
         .time_to_live(Duration::from_secs(10))
         .max_capacity(16_000)
         .build();
-    
+
     let db = database::establish_connection(&config.database_url)
         .await
         .expect("Failed to connect to database");

@@ -1,1 +1,1 @@
-# duolang
+# tma-rust
