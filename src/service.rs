@@ -19,8 +19,7 @@ pub async fn create_user(
     db: &Arc<DatabaseConnection>,
 ) -> Result<user::Model> {
     let user_exists = get_user_by_id(user.id, db)
-        .await
-        .map_err(|e| anyhow!("database error: {}", e))?;;
+        .await?;
 
     if user_exists.is_some() {
         bail!("user is already exists");

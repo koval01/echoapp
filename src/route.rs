@@ -11,7 +11,7 @@ use crate::{handler::{
     health_checker_handler,
 }, error::ApiError, AppState};
 use crate::handler::{user_by_id_handler_get, user_handler_get};
-use crate::middleware::validate_middleware;
+use crate::middleware::{sync_user_middleware, validate_middleware};
 
 pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
     // Routes without auth middleware
@@ -20,6 +20,7 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
 
     let protected_middlewares = ServiceBuilder::new()
         .layer(axum::middleware::from_fn(validate_middleware))
+        .layer(axum::middleware::from_fn(sync_user_middleware))
         .into_inner();
 
     // Routes with auth middleware
