@@ -1,18 +1,20 @@
 name: Build and Push Docker Image
 
+env:
+  CARGO_TERM_COLOR: always
+  DOCKER_IMAGE: koval01/tma-rust
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
-env:
-  CARGO_TERM_COLOR: always
-  DOCKER_IMAGE: koval01/tma-rust
-
 permissions:
-  contents: read
+  contents: write
   packages: write
+  issues: write
+  pull-requests: write
 
 jobs:
   build:
@@ -65,7 +67,7 @@ jobs:
 
       - name: Create Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: target/release/*
           name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
