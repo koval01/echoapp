@@ -65,56 +65,56 @@ jobs:
             echo "build_date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
           fi
 
-#      - name: Create Release
-#        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-#        uses: softprops/action-gh-release@v2
-#        with:
-#          files: target/release/*
-#          name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
-#          tag_name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#
-#      - name: Prepare binaries for Docker
-#        run: |
-#          mkdir -p docker-files
-#          cp target/release/tma-rust docker-files/
-#
-#      - name: Build Docker image for testing
-#        uses: docker/build-push-action@v5
-#        with:
-#          context: .
-#          file: Dockerfile
-#          load: true
-#          tags: ${{ env.DOCKER_IMAGE }}:test
-#
-#      - name: Test Docker image
-#        env:
-#          REDIS_URL: ${{ secrets.REDIS_URL }}
-#        run: |
-#          docker run -d --name test-container \
-#            -e REDIS_URL="${REDIS_URL}" \
-#            -p 8000:8000 \
-#            ${{ env.DOCKER_IMAGE }}:test
-#
-#          sleep 20
-#
-#          docker exec test-container curl -f http://localhost:8000/healthz || exit 1
-#          docker stop test-container
-#          docker rm test-container
-#
-#      - name: Login to Docker Hub
-#        if: github.event_name != 'pull_request'
-#        uses: docker/login-action@v3
-#        with:
-#          username: koval01
-#          password: ${{ secrets.DOCKERHUB_TOKEN }}
-#
-#      - name: Build and push Docker image
-#        uses: docker/build-push-action@v5
-#        with:
-#          context: .
-#          file: Dockerfile
-#          push: ${{ github.event_name != 'pull_request' }}
-#          tags: |
-#            ${{ env.DOCKER_IMAGE }}:latest
+      - name: Prepare binaries for Docker
+        run: |
+          mkdir -p docker-files
+          cp target/release/tma-rust docker-files/
+
+      - name: Build Docker image for testing
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          tags: ${{ env.DOCKER_IMAGE }}:test
+
+      - name: Test Docker image
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          docker run -d --name test-container \
+            -e REDIS_URL="${REDIS_URL}" \
+            -p 8000:8000 \
+            ${{ env.DOCKER_IMAGE }}:test
+          
+          sleep 20
+
+          docker exec test-container curl -f http://localhost:8000/healthz || exit 1
+          docker stop test-container
+          docker rm test-container
+
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: koval01
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/tma-rust
+          name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
+          tag_name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
