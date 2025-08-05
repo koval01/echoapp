@@ -84,6 +84,8 @@ jobs:
         run: |
           docker run -d --name test-container \
             -e REDIS_URL="${REDIS_URL}" \
+            -e DATABASE_URL="${DATABASE_URL}" \
+            -e BOT_TOKEN="${BOT_TOKEN}" \
             -p 8000:8000 \
             ${{ env.DOCKER_IMAGE }}:test
           
