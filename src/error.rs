@@ -13,6 +13,7 @@ use redis::RedisError;
 
 use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
+use sea_orm::DbErr;
 
 use tracing::debug;
 
@@ -34,6 +35,7 @@ pub enum ApiError {
     Reqwest(ReqwestError),
     Serialization(SerdeJsonError),
     SelectorParseError(String),
+    Database(DbErr),
     Custom(StatusCode, String),
 }
 
@@ -50,6 +52,7 @@ impl ApiError {
             ApiError::Reqwest(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::SelectorParseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Custom(code, _) => *code,
         }
     }
@@ -66,6 +69,7 @@ impl ApiError {
             ApiError::Reqwest(error) => format!("HTTP request error: {}", error),
             ApiError::Serialization(error) => format!("JSON serialization error: {}", error),
             ApiError::SelectorParseError(error) => format!("Selector parse error: {}", error),
+            ApiError::Database(error) => format!("Database error: {}", error),
             ApiError::Custom(_, message) => message.clone(),
         }
     }
@@ -81,6 +85,13 @@ impl From<RedisError> for ApiError {
     fn from(error: RedisError) -> Self {
         debug!("{:#?}", error);
         ApiError::Redis(RunError::User(error))
+    }
+}
+
+impl From<DbErr> for ApiError {
+    fn from(error: DbErr) -> Self {
+        debug!("Database error: {:#?}", error);
+        ApiError::Database(error)
     }
 }
 

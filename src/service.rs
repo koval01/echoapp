@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use sea_orm::{EntityTrait, DatabaseConnection, ActiveValue, ActiveModelTrait};
+use sea_orm::{EntityTrait, DatabaseConnection, ActiveValue, ActiveModelTrait, DbErr};
 
 use anyhow::{anyhow, bail, Result};
 use entities::user;
@@ -8,11 +8,10 @@ use crate::model::user::User;
 pub async fn get_user_by_id(
     user_id: i64,
     db: &Arc<DatabaseConnection>,
-) -> Result<Option<user::Model>, String> {
+) -> Result<Option<user::Model>, DbErr> {
     user::Entity::find_by_id(user_id)
         .one(db.as_ref())
         .await
-        .map_err(|e| format!("error fetching user from database: {}", e))
 }
 
 pub async fn create_user(
@@ -24,7 +23,7 @@ pub async fn create_user(
         .map_err(|e| anyhow!("database error: {}", e))?;;
 
     if user_exists.is_some() {
-        bail!("the email is already in use.");
+        bail!("user is already exists");
     }
 
     let new_user = user::ActiveModel {
