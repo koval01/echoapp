@@ -109,13 +109,6 @@ impl From<SerdeJsonError> for ApiError {
     }
 }
 
-impl<'a> From<scraper::error::SelectorErrorKind<'a>> for ApiError {
-    fn from(error: scraper::error::SelectorErrorKind<'a>) -> Self {
-        debug!("Selector parse error: {:#?}", error);
-        ApiError::SelectorParseError(format!("{:?}", error))
-    }
-}
-
 impl From<QueryRejection> for ApiError {
     fn from(error: QueryRejection) -> Self {
         debug!("{:#?}", error);
