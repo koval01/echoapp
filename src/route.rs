@@ -1,20 +1,18 @@
+use std::sync::Arc;
 use axum::{
     routing::{get},
     Router,
     response::IntoResponse,
 };
-
+use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 
-use crate::{
-    handler::{
-        health_checker_handler,
-    },
-    error::ApiError,
-};
+use crate::{handler::{
+    health_checker_handler,
+}, error::ApiError, AppState};
 use crate::middleware::validate_middleware;
 
-pub fn create_router() -> Router {
+pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
     // Routes without auth middleware
     let public_routes = Router::new()
         .route("/healthz", get(health_checker_handler));
@@ -41,5 +39,6 @@ pub fn create_router() -> Router {
     Router::new()
         .merge(public_routes)
         .merge(protected_routes)
+        .with_state(app_state)
         .fallback(|| async { ApiError::NotFound("not found".to_string()).into_response() })
 }

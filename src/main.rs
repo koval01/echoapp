@@ -160,7 +160,11 @@ async fn main() {
         .layer(axum::middleware::from_fn(process_time_middleware))
         .layer(axum::middleware::from_fn(request_id_middleware));
 
-    let app = create_router()
+    let app_state = Arc::new(RwLock::new(AppState {
+        config,
+    }));
+
+    let app = create_router(app_state)
         .layer(middleware_stack)
         .layer(compression_layer)
         .layer(Extension(shared_db))
