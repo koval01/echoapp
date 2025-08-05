@@ -28,21 +28,25 @@ use tower::ServiceBuilder;
 use tower_http::{
     cors::CorsLayer,
     trace::TraceLayer,
-    compression::{CompressionLayer, DefaultPredicate}
+    classify::ServerErrorsFailureClass,
+    compression::{CompressionLayer, DefaultPredicate},
 };
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
+
 use tokio::sync::RwLock;
-use tower_http::classify::ServerErrorsFailureClass;
+
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
-use crate::middleware::{request_id_middleware, process_time_middleware};
-use crate::util::cache::CacheBackend;
-
 use migration::{Migrator, MigratorTrait};
-use crate::config::Config;
+
+use crate::{
+    config::Config,
+    util::cache::CacheBackend,
+    middleware::{request_id_middleware, process_time_middleware}
+};
 
 pub struct AppState {
     pub config: Config,
@@ -154,7 +158,7 @@ async fn main() {
         .layer(NewSentryLayer::new_from_top())
         .layer(trace_layer)
         .layer(cors)
-        .layer(tower::limit::ConcurrencyLimitLayer::new(1000));
+        .layer(tower::limit::ConcurrencyLimitLayer::new(1024));
 
     let middleware_stack = middleware_stack
         .layer(axum::middleware::from_fn(process_time_middleware))
