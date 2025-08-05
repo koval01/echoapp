@@ -67,9 +67,8 @@ async fn main() {
         .with_ansi(false)
         .init();
 
-    let _dsn = env::var("SENTRY_DSN").unwrap_or_else(|_| "".to_string());
     let _guard = sentry::init((
-        _dsn.into_dsn().unwrap(),
+        config.sentry_dsn.clone().into_dsn().unwrap(),
         ClientOptions {
             release: sentry::release_name!(),
             traces_sample_rate: 0.2,
@@ -77,10 +76,8 @@ async fn main() {
         },
     ));
 
-    let cors_host = env::var("CORS_HOST").unwrap_or_else(|_| "http://localhost:3000".to_string());
-
     let cors = CorsLayer::new()
-        .allow_origin(cors_host.parse::<HeaderValue>().unwrap())
+        .allow_origin(config.cors_host.parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
         .allow_credentials(true)
         .allow_headers([
@@ -101,16 +98,14 @@ async fn main() {
         .time_to_live(Duration::from_secs(10))
         .max_capacity(16_000)
         .build();
-
-    let database_url = env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set in .env file");
-    let db = database::establish_connection(&database_url)
+    
+    let db = database::establish_connection(&config.database_url)
         .await
         .expect("Failed to connect to database");
     let _ = Migrator::up(&db, None).await.unwrap();
     let shared_db = Arc::new(db);
 
-    let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
+    let redis_backend = if let Ok(redis_url) = config.redis_url.clone() {
         let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
         let redis_pool = bb8::Pool::builder()
             .max_size((num_cpus::get() * 10) as u32)
@@ -164,6 +159,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(process_time_middleware))
         .layer(axum::middleware::from_fn(request_id_middleware));
 
+    let _bind = config.server_bind_addr.clone();
     let app_state = Arc::new(RwLock::new(AppState {
         config,
     }));
@@ -176,7 +172,6 @@ async fn main() {
         .layer(Extension(moka_cache))
         .layer(Extension(http_client));
 
-    let _bind = env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:8000".to_string());
     let listener = tokio::net::TcpListener::bind(&_bind)
         .await
         .unwrap();
