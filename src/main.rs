@@ -30,18 +30,15 @@ use tower_http::{
     trace::TraceLayer,
     compression::{CompressionLayer, DefaultPredicate}
 };
-use tower_sessions::{CachingSessionStore, SessionManagerLayer};
 
 use sentry::{ClientOptions, IntoDsn};
 use sentry_tower::NewSentryLayer;
 use tokio::sync::RwLock;
 use tower_http::classify::ServerErrorsFailureClass;
-use tower_sessions_moka_store::MokaStore;
-use tower_sessions_seaorm_store::PostgresStore;
-
+use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
-use crate::middleware::{request_id_middleware, process_time_middleware, validate_middleware};
+use crate::middleware::{request_id_middleware, process_time_middleware};
 use crate::util::cache::CacheBackend;
 
 use migration::{Migrator, MigratorTrait};
@@ -59,7 +56,7 @@ async fn main() {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("") // panel=info,tower_http=info
+                .parse("") // duolang=info,tower_http=info
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
@@ -80,12 +77,12 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_origin(cors_host.parse::<HeaderValue>().unwrap())
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_methods([Method::GET, Method::POST])
         .allow_credentials(true)
         .allow_headers([
             ACCEPT,
             CONTENT_TYPE,
-            HeaderName::from_static("x-timestamp"),
+            HeaderName::from_static("x-initdata")
         ]);
 
     let predicate = DefaultPredicate::new();
@@ -107,12 +104,7 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
     let _ = Migrator::up(&db, None).await.unwrap();
-    let session_store = PostgresStore::new(db.clone());
     let shared_db = Arc::new(db);
-
-    let moka_store = MokaStore::new(Some(2_000));
-    let session_store = CachingSessionStore::new(moka_store, session_store);
-    let session_layer = SessionManagerLayer::new(session_store).with_secure(false);
 
     let redis_backend = if let Ok(redis_url) = env::var("REDIS_URL") {
         let redis_manager = RedisConnectionManager::new(redis_url).unwrap();
@@ -166,14 +158,9 @@ async fn main() {
 
     let middleware_stack = middleware_stack
         .layer(axum::middleware::from_fn(process_time_middleware))
-        .layer(axum::middleware::from_fn(request_id_middleware))
-        .layer(axum::middleware::from_fn(validate_middleware));
+        .layer(axum::middleware::from_fn(request_id_middleware));
 
-    let app_state = Arc::new(RwLock::new(AppState {
-        config,
-    }));
-
-    let app = create_router(app_state.clone(), session_layer).await
+    let app = create_router()
         .layer(middleware_stack)
         .layer(compression_layer)
         .layer(Extension(shared_db))
@@ -186,11 +173,11 @@ async fn main() {
         .await
         .unwrap();
 
-    println!("🚀 Server started successfully on {}", _bind);
+    info!("🚀 Server started successfully on {}", _bind);
 
     axum::serve(
         listener,
-        app.into_make_service()
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>()
     )
         .await
         .unwrap();
