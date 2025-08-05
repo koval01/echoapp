@@ -45,6 +45,8 @@ hmac = "0.12"
 sha2 = "0.10"
 ahash = "0.8"
 hex = "0.4"
+base64 = "0.22.1"
+ed25519-dalek = "2.2"
 
 [dev-dependencies]
 tokio = { version = "1.46", features = ["macros", "rt-multi-thread"] }

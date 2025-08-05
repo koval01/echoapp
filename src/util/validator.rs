@@ -2,33 +2,42 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
-use lazy_static::lazy_static; // Allows for defining static variables that are initialized lazily
-use ahash::AHashMap; // A fast, non-cryptographic hashmap implementation
+use lazy_static::lazy_static;
+use ahash::AHashMap;
+use ed25519_dalek::{VerifyingKey, Signature, Verifier, SignatureError};
+use hex::FromHex;
+use tower::ServiceExt;
+use base64::Engine as _;
+use base64::engine::general_purpose;
 
 type HmacSha256 = Hmac<Sha256>;
+
+// Telegram's Ed25519 public keys
+const TELEGRAM_TEST_PUBLIC_KEY: &str = "40055058a4ee38156a06562e52eece92a771bcd8346a8c4615cb7376eddf72ec";
+const TELEGRAM_PRODUCTION_PUBLIC_KEY: &str = "e7bf03a2fa4602af4580703d88dda5bb59f32ed8b02a56c187fe7d34caed242d";
 
 lazy_static! {
     static ref SECRET_KEY: Vec<u8> = {
         let bot_token = env::var("BOT_TOKEN")
             .expect("BOT_TOKEN must be set");
 
-        // Create an HMAC instance with the key "WebAppData"
         let mut mac = HmacSha256::new_from_slice(b"WebAppData")
             .expect("Failed to create HMAC instance");
 
-        // Update the HMAC with the bot token
         mac.update(bot_token.as_bytes());
         mac.finalize().into_bytes().to_vec()
     };
+
+    static ref BOT_ID: String = {
+        let bot_token = env::var("BOT_TOKEN")
+            .expect("BOT_TOKEN must be set");
+        bot_token.split(':').next().unwrap().to_string()
+    };
 }
 
-// `thread_local!` is used to define thread-local buffers to avoid repeated allocations
 thread_local! {
-    // A buffer for storing key-value pairs during processing
     static PAIRS_BUF: std::cell::RefCell<Vec<(String, String)>> =
         std::cell::RefCell::new(Vec::with_capacity(10));
-
-    // A buffer for storing the hexadecimal representation of the computed hash
     static HEX_BUF: std::cell::RefCell<[u8; 64]> =
         std::cell::RefCell::new([0u8; 64]);
 }
@@ -38,91 +47,144 @@ pub fn validate_init_data(init_data: &str) -> Result<bool, &'static str> {
         return Err("Input data too long");
     }
 
-    // Ensure the input data contains only valid ASCII characters, `&`, or `=`
     if !init_data.chars().all(|c| c.is_ascii() && !c.is_control() || c == '&' || c == '=') {
         return Err("Invalid characters in input");
     }
 
-    // Parse the `init_data` into key-value pairs
-    let mut params = AHashMap::with_capacity(10); // Stores the parsed parameters
-    let mut received_hash = None; // Stores the "hash" value from the input
+    let mut params = AHashMap::with_capacity(10);
+    let mut received_hash = None;
+    let mut received_signature = None;
 
-    // Split the input string into key-value pairs
     for pair in init_data.split('&') {
         if let Some(sep_idx) = pair.find('=') {
-            // Split the pair into key and value
             let (key, value) = pair.split_at(sep_idx);
-
-            if key == "hash" {
-                // If the key is "hash", store the value (excluding the '=' character)
-                received_hash = Some(&value[1..]);
-            } else {
-                // Otherwise, insert the key-value pair into the hashmap
-                params.insert(key, &value[1..]);
+            match key {
+                "hash" => received_hash = Some(&value[1..]),
+                "signature" => received_signature = Some(&value[1..]),
+                _ => {
+                    params.insert(key, &value[1..]);
+                }
             }
         }
     }
 
-    // Ensure the "hash" parameter was present
-    let received_hash = received_hash.ok_or("Missing 'hash' parameter")?;
-
-    // Retrieve and validate the "auth_date" parameter
+    // Validate auth_date
     let auth_date = params
         .get("auth_date")
-        .ok_or("Missing 'auth_date' parameter")? // Ensure "auth_date" exists
-        .parse::<u64>() // Parse it as a 64-bit unsigned integer
-        .map_err(|_| "Invalid 'auth_date' value")?; // Handle parsing errors
+        .ok_or("Missing 'auth_date' parameter")?
+        .parse::<u64>()
+        .map_err(|_| "Invalid 'auth_date' value")?;
 
-    // Get the current time in seconds since the UNIX epoch
     let current_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|_| "System time is before UNIX epoch")? // Handle errors if the system time is invalid
+        .map_err(|_| "System time is before UNIX epoch")?
         .as_secs();
 
-    // Check if the "auth_date" is too old (more than 1 hour ago)
     if current_time > auth_date + 14400 {
         return Err("auth_date expired");
     }
 
-    // Use the thread-local buffer for storing sorted key-value pairs
-    PAIRS_BUF.with(|buf| {
-        let mut pairs = buf.borrow_mut(); // Borrow the buffer
-        pairs.clear(); // Clear any existing data in the buffer
+    // First try to validate with Ed25519 signature if present
+    if let Some(signature) = received_signature {
+        if validate_with_ed25519(&params, signature)? {
+            return Ok(true);
+        }
+    }
 
-        // Add all key-value pairs from the hashmap to the buffer
+    // Fall back to HMAC validation if signature validation fails or isn't present
+    if let Some(hash) = received_hash {
+        return validate_with_hmac(&params, hash);
+    }
+
+    Err("Neither hash nor signature provided for validation")
+}
+
+fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str) -> Result<bool, &'static str> {
+    PAIRS_BUF.with(|buf| {
+        let mut pairs = buf.borrow_mut();
+        pairs.clear();
+
         for (k, v) in params {
             pairs.push((k.to_string(), v.to_string()));
         }
 
-        // Sort the pairs by key (lexicographically)
         pairs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
-        // Construct the data check string by concatenating "key=value" pairs with '\n' as a separator
         let data_check_string = pairs.iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect::<Vec<_>>()
             .join("\n");
 
-        // Create a new HMAC instance using the precomputed secret key
         let mut mac = HmacSha256::new_from_slice(&SECRET_KEY)
             .map_err(|_| "Failed to create HMAC instance")?;
-        mac.update(data_check_string.as_bytes()); // Update the HMAC with the data check string
-        let hash = mac.finalize().into_bytes(); // Finalize the HMAC and get the resulting hash
+        mac.update(data_check_string.as_bytes());
+        let hash = mac.finalize().into_bytes();
 
-        // Use the thread-local buffer for storing the hexadecimal hash
         HEX_BUF.with(|hex_buf| {
-            let mut buf = hex_buf.borrow_mut(); // Borrow the buffer
-
-            // Encode the hash as a hexadecimal string and store it in the buffer
+            let mut buf = hex_buf.borrow_mut();
             hex::encode_to_slice(&hash, &mut *buf)
                 .map_err(|_| "Failed to encode hash")?;
 
-            // Convert the buffer to a UTF-8 string
             let computed_hash = std::str::from_utf8(&*buf)
                 .map_err(|_| "Invalid UTF-8 in hash")?;
 
-            // Compare the computed hash with the received hash and return the result
             Ok(computed_hash == received_hash)
         })
+    })
+}
+
+fn validate_with_ed25519(params: &AHashMap<&str, &str>, signature: &str) -> Result<bool, &'static str> {
+    PAIRS_BUF.with(|buf| {
+        let mut pairs = buf.borrow_mut();
+        pairs.clear();
+
+        for (k, v) in params {
+            pairs.push((k.to_string(), v.to_string()));
+        }
+
+        pairs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+        // Construct the data-check-string
+        let data_check_string = format!("{}:WebAppData\n{}",
+                                        *BOT_ID,
+                                        pairs.iter()
+                                            .map(|(k, v)| format!("{}={}", k, v))
+                                            .collect::<Vec<_>>()
+                                            .join("\n")
+        );
+
+        // Get the appropriate public key
+        let public_key_hex = if cfg!(test) {
+            TELEGRAM_TEST_PUBLIC_KEY
+        } else {
+            TELEGRAM_PRODUCTION_PUBLIC_KEY
+        };
+
+        // Convert hex public key to bytes
+        let public_key_bytes: [u8; 32] = Vec::from_hex(public_key_hex)
+            .map_err(|_| "Invalid Telegram public key hex")?
+            .try_into()
+            .map_err(|_| "Invalid public key length")?;
+
+        let verifying_key = VerifyingKey::from_bytes(&public_key_bytes)
+            .map_err(|_| "Invalid Telegram public key bytes")?;
+
+        // Decode base64url signature
+        let signature_bytes = general_purpose::URL_SAFE_NO_PAD
+            .decode(signature)
+            .map_err(|_| "Invalid base64url signature")?;
+
+        // Convert to fixed-size array
+        let signature_array: [u8; 64] = signature_bytes
+            .try_into()
+            .map_err(|_| "Invalid signature length")?;
+
+        let signature = Signature::from_bytes(&signature_array);
+
+        // Verify the signature
+        match verifying_key.verify(&data_check_string.as_bytes(), &signature) {
+            Ok(_) => Ok(true),
+            Err(_) => Ok(false),
+        }
     })
 }
