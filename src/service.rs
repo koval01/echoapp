@@ -1,73 +1,40 @@
 use std::sync::Arc;
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, DatabaseConnection, ActiveValue, ActiveModelTrait};
+use sea_orm::{EntityTrait, DatabaseConnection, ActiveValue, ActiveModelTrait};
 
 use anyhow::{anyhow, bail, Result};
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use argon2::password_hash::rand_core::OsRng;
-use argon2::password_hash::SaltString;
-use uuid::Uuid;
 use entities::user;
+use crate::model::user::User;
 
-pub async fn check_email_password(
-    email: String,
-    password: String,
+pub async fn get_user_by_id(
+    user_id: i64,
     db: &Arc<DatabaseConnection>,
-) -> Result<user::Model> {
-    let email = email.to_ascii_lowercase();
-
-    // Correct query construction
-    let user = user::Entity::find()
-        .filter(user::Column::Email.eq(email))
+) -> Result<Option<user::Model>, String> {
+    user::Entity::find_by_id(user_id)
         .one(db.as_ref())
         .await
-        .map_err(|e| anyhow!("database error: {}.", e))?
-        .ok_or_else(|| anyhow!("invalid email or password."))?;
-
-    let is_valid = match PasswordHash::new(&user.password) {
-        Ok(parsed_hash) => Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash)
-            .map_or(false, |_| true),
-        Err(_err) => false,
-    };
-
-    if !is_valid {
-        bail!("invalid email or password.");
-    }
-
-    Ok(user)
+        .map_err(|e| format!("error fetching user from database: {}", e))
 }
 
 pub async fn create_user(
-    email: String,
-    password: String,
-    username: String,
+    user: User,
     db: &Arc<DatabaseConnection>,
 ) -> Result<user::Model> {
-    let email = email.to_ascii_lowercase();
-    let user_exists = user::Entity::find()
-        .filter(user::Column::Email.eq(&email))
-        .one(db.as_ref())
+    let user_exists = get_user_by_id(user.id, db)
         .await
-        .map_err(|e| anyhow!("database error: {}", e))?;
+        .map_err(|e| anyhow!("database error: {}", e))?;;
 
     if user_exists.is_some() {
         bail!("the email is already in use.");
     }
 
-    // Hash password
-    let salt = SaltString::generate(&mut OsRng);
-    let hashed_password = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| anyhow!("failed to hash password: {}", e))
-        .map(|hash| hash.to_string())?;
-
-    // Create new user
-    let uuid = Uuid::new_v4().to_string();
     let new_user = user::ActiveModel {
-        id: ActiveValue::Set(uuid.parse()?),
-        email: ActiveValue::Set(email),
-        password: ActiveValue::Set(hashed_password),
-        username: ActiveValue::Set(username),
+        id: ActiveValue::Set(user.id),
+        first_name: ActiveValue::Set(user.first_name),
+        last_name: ActiveValue::Set(user.last_name),
+        username: ActiveValue::Set(user.username),
+        language_code: ActiveValue::Set(user.language_code),
+        allows_write_to_pm: ActiveValue::Set(user.allows_write_to_pm),
+        photo_url: ActiveValue::Set(user.photo_url),
         ..Default::default()
     };
 
@@ -76,17 +43,4 @@ pub async fn create_user(
         .map_err(|e| anyhow!("database error: {}", e))?;
 
     Ok(user)
-}
-
-pub async fn get_user_by_id(
-    user_id: &str,
-    db: &Arc<DatabaseConnection>,
-) -> Result<Option<user::Model>, String> {
-    let uuid = Uuid::parse_str(user_id)
-        .map_err(|e| format!("invalid UUID: {}", e))?;
-
-    user::Entity::find_by_id(uuid)
-        .one(db.as_ref())
-        .await
-        .map_err(|e| format!("error fetching user from database: {}", e))
 }
