@@ -45,6 +45,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "tma-rust"
+          path: target/release/tma-rust
+
+      - name: Get short SHA and current date
+        id: vars
+        shell: bash
+        run: |
+          if [[ matrix.os == "windows-latest" ]]; then
+            echo "short_sha=${GITHUB_SHA::8}" >> $env:GITHUB_OUTPUT
+            echo "build_date=$(Get-Date -Format 'yyyy.MM.dd')" >> $env:GITHUB_OUTPUT
+          else
+            echo "short_sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+            echo "build_date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*
+          name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
+          tag_name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Prepare binaries for Docker
         run: |
           mkdir -p docker-files
