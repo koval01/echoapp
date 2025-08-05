@@ -40,12 +40,27 @@ pub async fn user_handler_get(
 pub async fn user_by_id_handler_get(
     StrictI64(user_id): StrictI64,
     Extension(db): Extension<Arc<DatabaseConnection>>,
+    Extension(redis_pool): Extension<CacheBackend>,
+    Extension(moka_cache): Extension<Cache<String, String>>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user = get_user_by_id(user_id, &db)
-        .await
-        .map_err(|e| ApiError::from(e))?;
+    let cache = CacheWrapper::<user::Model>::new(
+        redis_pool,
+        moka_cache,
+        10,
+        10
+    );
 
-    let user = user.ok_or(ApiError::NotFound("User not found".to_string()))?;
+    let user = cache_fetch!(
+        cache,
+        &format!("user:{}", &user_id),
+        async {
+            match get_user_by_id(user_id, &db).await {
+                Ok(Some(user)) => Ok(Some(user)),
+                Ok(None) => Err(ApiError::NotFound("User not found".to_string())),
+                Err(e) => Err(ApiError::from(e)),
+            }
+        }
+    )?;
 
     let response = ApiResponse::success(user);
     Ok((StatusCode::OK, Json(response)))
