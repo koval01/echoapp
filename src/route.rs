@@ -10,6 +10,7 @@ use tower::ServiceBuilder;
 use crate::{handler::{
     health_checker_handler,
 }, error::ApiError, AppState};
+use crate::handler::user_handler_get;
 use crate::middleware::validate_middleware;
 
 pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
@@ -23,14 +24,10 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
 
     // Routes with auth middleware
     let protected_routes = Router::new()
-        // .route(
-        //     "/v1/preview/{channel}",
-        //     get(channel_preview_handler_get)
-        // )
-        // .route(
-        //     "/v1/body/{channel}",
-        //     get(channel_body_handler_get)
-        // )
+        .route(
+            "/v1/user/me",
+            get(user_handler_get)
+        )
         .layer(
             protected_middlewares
         );
