@@ -1,12 +1,13 @@
 use std::sync::Arc;
-use sea_orm::{EntityTrait, DatabaseConnection, ActiveValue, ActiveModelTrait, DbErr};
+use sea_orm::{EntityTrait, DatabaseConnection, ActiveModelTrait, DbErr};
 use sea_orm::{entity::*, query::*};
 
 use anyhow::{anyhow, bail, Result};
 use entities::user;
 use crate::model::user::User;
 
-pub async fn get_user_by_telegram_id(
+#[allow(dead_code)]
+pub async fn get_user_by_id(
     user_id: uuid::Uuid,
     db: &Arc<DatabaseConnection>,
 ) -> Result<Option<user::Model>, DbErr> {
@@ -15,7 +16,7 @@ pub async fn get_user_by_telegram_id(
         .await
 }
 
-pub async fn get_user_by_id(
+pub async fn get_user_by_telegram_id(
     telegram_id: i64,
     db: &Arc<DatabaseConnection>,
 ) -> Result<Option<user::Model>, DbErr> {
@@ -29,7 +30,7 @@ pub async fn create_user(
     user: User,
     db: &Arc<DatabaseConnection>,
 ) -> Result<user::Model> {
-    let user_exists = get_user_by_id(user.id, db)
+    let user_exists = get_user_by_telegram_id(user.id, db)
         .await?;
 
     if user_exists.is_some() {
