@@ -19,7 +19,7 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
         .route("/healthz", get(health_checker_handler));
 
     let protected_middlewares = ServiceBuilder::new()
-        .layer(axum::middleware::from_fn(validate_middleware))
+        .layer(axum::middleware::from_fn_with_state(app_state.clone(), validate_middleware))
         .layer(axum::middleware::from_fn(sync_user_middleware))
         .into_inner();
 
