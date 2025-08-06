@@ -4,9 +4,12 @@ use axum::{
     middleware::Next,
     response::{IntoResponse},
 };
+use axum::extract::State;
+use crate::AppState;
 use crate::error::ApiError;
 
 pub async fn validate_middleware(
+    State(state): State<AppState>,
     mut req: Request<Body>,
     next: Next,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -20,7 +23,7 @@ pub async fn validate_middleware(
         .map_err(|_| ApiError::BadRequest)?
         .into_owned();
 
-    match crate::util::validator::validate_init_data(&decoded_init_data) {
+    match crate::util::validator::validate_init_data(&decoded_init_data, &state.config.bot_token) {
         Ok(true) => {
             req.extensions_mut().insert(decoded_init_data);
             Ok(next.run(req).await)
