@@ -1,10 +1,9 @@
 use axum::{response::IntoResponse, http::StatusCode, Json, Extension};
 use std::sync::Arc;
-use axum::extract::Path;
 use moka::future::Cache;
 use sea_orm::DatabaseConnection;
-use uuid::Uuid;
 use entities::user;
+
 use crate::{error::ApiError, model::user::User, response::{ApiResponse}, extractor::InitData, cache_fetch};
 use crate::extractor::StrictUuid;
 use crate::service::{get_user_by_id, get_user_by_telegram_id};
@@ -48,13 +47,13 @@ pub async fn user_by_id_handler_get(
     let cache = CacheWrapper::<user::Model>::new(
         redis_pool,
         moka_cache,
-        10,
-        10
+        120,
+        30
     );
 
     let user = cache_fetch!(
         cache,
-        &format!("user:{}", &user_id),
+        &format!("user_uuid:{}", &user_id),
         async {
             match get_user_by_id(user_id, &db).await {
                 Ok(Some(user)) => Ok(Some(user)),
