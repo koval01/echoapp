@@ -1,15 +1,26 @@
 use std::sync::Arc;
 use sea_orm::{EntityTrait, DatabaseConnection, ActiveValue, ActiveModelTrait, DbErr};
+use sea_orm::{entity::*, query::*};
 
 use anyhow::{anyhow, bail, Result};
 use entities::user;
 use crate::model::user::User;
 
-pub async fn get_user_by_id(
-    user_id: i64,
+pub async fn get_user_by_telegram_id(
+    user_id: uuid::Uuid,
     db: &Arc<DatabaseConnection>,
 ) -> Result<Option<user::Model>, DbErr> {
     user::Entity::find_by_id(user_id)
+        .one(db.as_ref())
+        .await
+}
+
+pub async fn get_user_by_id(
+    telegram_id: i64,
+    db: &Arc<DatabaseConnection>,
+) -> Result<Option<user::Model>, DbErr> {
+    user::Entity::find()
+        .filter(user::Column::TelegramId.eq(telegram_id))
         .one(db.as_ref())
         .await
 }
@@ -26,13 +37,13 @@ pub async fn create_user(
     }
 
     let new_user = user::ActiveModel {
-        id: ActiveValue::Set(user.id),
-        first_name: ActiveValue::Set(user.first_name),
-        last_name: ActiveValue::Set(user.last_name),
-        username: ActiveValue::Set(user.username),
-        language_code: ActiveValue::Set(user.language_code),
-        allows_write_to_pm: ActiveValue::Set(user.allows_write_to_pm),
-        photo_url: ActiveValue::Set(user.photo_url),
+        telegram_id: Set(user.id),
+        first_name: Set(user.first_name),
+        last_name: Set(user.last_name),
+        username: Set(user.username),
+        language_code: Set(user.language_code),
+        allows_write_to_pm: Set(user.allows_write_to_pm),
+        photo_url: Set(user.photo_url),
         ..Default::default()
     };
 
