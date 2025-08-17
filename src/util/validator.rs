@@ -2,7 +2,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
 use ahash::AHashMap;
-use ed25519_dalek::{VerifyingKey, Signature, Verifier, SignatureError};
+use ed25519_dalek::{VerifyingKey, Signature, Verifier};
 use hex::FromHex;
 use base64::Engine as _;
 use base64::engine::general_purpose;
@@ -18,7 +18,7 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
         return Err("Input data too long");
     }
 
-    if !init_data.chars().all(|c| c.is_ascii() && !c.is_control() || c == '&' || c == '=') {
+    if !init_data.chars().all(|c| (c.is_ascii() && !c.is_control()) || c == '&' || c == '=') {
         return Err("Invalid characters in input");
     }
 
@@ -147,11 +147,9 @@ fn validate_with_ed25519(params: &AHashMap<&str, &str>, signature: &str, bot_tok
         .try_into()
         .map_err(|_| "Invalid signature length")?;
 
-    let signature = Signature::from_bytes(&signature_array);
+    let sig = Signature::from_slice(&signature_array)
+        .map_err(|_| "Invalid signature bytes")?;
 
     // Verify the signature
-    match verifying_key.verify(&data_check_string.as_bytes(), &signature) {
-        Ok(_) => Ok(true),
-        Err(_) => Ok(false),
-    }
+    Ok(verifying_key.verify(data_check_string.as_bytes(), &sig).is_ok())
 }
