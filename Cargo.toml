@@ -44,6 +44,7 @@ ahash = "0.8"
 hex = "0.4"
 base64 = "0.22.1"
 ed25519-dalek = "2.2"
+subtle = "2.6.1"
 
 [dev-dependencies]
 tokio = { version = "1.47", features = ["macros", "rt-multi-thread"] }

@@ -1,4 +1,5 @@
 use hmac::{Hmac, Mac};
+use subtle::ConstantTimeEq;
 use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
 use ahash::AHashMap;
@@ -72,6 +73,7 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
 
 fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str, bot_token: &str) -> Result<bool, &'static str> {
     // Compute secret key from bot_token
+    // Telegram requirement: secret_key = HMAC_SHA256("WebAppData", bot_token)
     let mut mac = HmacSha256::new_from_slice(b"WebAppData")
         .expect("Failed to create HMAC instance");
     mac.update(bot_token.as_bytes());
@@ -100,7 +102,8 @@ fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str, bot_to
     let computed_hash = std::str::from_utf8(&hex_buf)
         .map_err(|_| "Invalid UTF-8 in hash")?;
 
-    Ok(computed_hash == received_hash)
+    let ok = computed_hash.as_bytes().ct_eq(received_hash.as_bytes()).unwrap_u8() == 1;
+    Ok(ok)
 }
 
 fn validate_with_ed25519(params: &AHashMap<&str, &str>, signature: &str, bot_token: &str) -> Result<bool, &'static str> {
