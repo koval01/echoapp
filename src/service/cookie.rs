@@ -1,15 +1,16 @@
-use axum_extra::extract::cookie::{Cookie, CookieJar};
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use time::Duration;
 
 pub struct CookieService;
 
 impl CookieService {
     pub fn create_auth_cookie(token: &str, max_age_minutes: i64) -> Cookie<'static> {
-        Cookie::build(("auth_token", token.to_string()))
+        Cookie::build(("__Host-auth_token", token.to_string()))
             .http_only(true)
             .secure(true)
             .max_age(Duration::minutes(max_age_minutes))
             .path("/")
+            .same_site(SameSite::Lax)
             .into()
     }
 

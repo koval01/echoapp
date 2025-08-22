@@ -32,7 +32,7 @@ pub async fn auth_handler_get(
     let token = generate_auth_token(&state, user_model.id).await?;
 
     // Add auth cookie
-    let updated_jar = CookieService::add_auth_cookie(jar, &token, 15);
+    let updated_jar = CookieService::add_auth_cookie(jar, &token, 10);
 
     // Prepare response
     let response = ApiResponse::success(user_model);
@@ -70,6 +70,6 @@ async fn generate_auth_token(
     let jwt_service = JwtService::new(&state_guard.config.jwt_secret)?;
 
     jwt_service
-        .generate_token(user_id, 15)
+        .generate_token(user_id, 10)
         .map_err(ApiError::from)
 }
