@@ -19,11 +19,10 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
         .route("/healthz", get(health_checker_handler));
 
     /* TODO: protected_middlewares будет telegram_middleware, для обработки x-initdata,
-        и создания access token + refresh token, то есть только для одного вызова, при запуске приложения.
-        То есть будет route типа /v1/auth/init, который вернет в json access token и refresh token.
-        А protected_middlewares станет middleware который проверяет access token, то есть
-        поменяется только ожидаемый заголовок, вместо X-InitData нужно уже будет передавать cookies.
-        Для refresh token можно выделить свой middleware, с route типа /v1/auth/refresh.
+        и создания access token, то есть только для одного вызова, при запуске приложения.
+        То есть будет route типа /v1/auth/init, который вернет в json access token.
+        А protected_middlewares станет middleware который проверяет access token из cookies.
+        Поменяется только ожидаемый заголовок, вместо X-InitData нужно уже будет передавать cookies.
     */
 
     let protected_middlewares = ServiceBuilder::new()
@@ -37,10 +36,6 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
             "/v1/auth/init",
             get(auth_handler_get)
         )
-        // .route(
-        //     "/v1/auth/refresh",
-        //     get(_)
-        // )
         .layer(
             protected_middlewares
         );
