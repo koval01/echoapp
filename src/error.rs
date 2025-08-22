@@ -15,7 +15,8 @@ use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
 use sea_orm::DbErr;
 use anyhow::Error as AnyhowError;
-
+use hmac::digest::InvalidLength;
+use jwt::error::Error as JwtError;
 use tracing::debug;
 
 use crate::{
@@ -39,6 +40,8 @@ pub enum ApiError {
     SelectorParseError(String),
     Database(DbErr),
     Anyhow(AnyhowError),
+    Cryptographic(String),
+    JwtError(JwtError),
     Custom(StatusCode, String),
 }
 
@@ -58,6 +61,8 @@ impl ApiError {
             ApiError::SelectorParseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Cryptographic(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::JwtError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::Custom(code, _) => *code,
         }
     }
@@ -77,6 +82,8 @@ impl ApiError {
             ApiError::SelectorParseError(error) => format!("Selector parse error: {}", error),
             ApiError::Database(error) => format!("Database error: {}", error),
             ApiError::Anyhow(error) => format!("Internal error: {}", error),
+            ApiError::Cryptographic(error) => format!("Cryptographic error: {}", error),
+            ApiError::JwtError(error) => format!("JWT error: {}", error),
             ApiError::Custom(_, message) => message.clone(),
         }
     }
@@ -106,6 +113,20 @@ impl From<AnyhowError> for ApiError {
     fn from(error: AnyhowError) -> Self {
         debug!("Anyhow error: {:#?}", error);
         ApiError::Anyhow(error)
+    }
+}
+
+impl From<InvalidLength> for ApiError {
+    fn from(error: InvalidLength) -> Self {
+        debug!("HMAC invalid length error: {:#?}", error);
+        ApiError::Cryptographic(format!("Invalid length: {}", error))
+    }
+}
+
+impl From<JwtError> for ApiError {
+    fn from(error: JwtError) -> Self {
+        debug!("JWT error: {:#?}", error);
+        ApiError::JwtError(error)
     }
 }
 
