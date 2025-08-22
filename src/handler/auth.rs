@@ -1,7 +1,8 @@
 use axum::{Extension, Json};
-use axum_extra::extract::cookie::CookieJar;
-use std::sync::Arc;
 use axum::extract::State;
+use axum_extra::extract::cookie::CookieJar;
+
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
@@ -12,6 +13,7 @@ use crate::{
     util::cache::{CacheBackend, CacheWrapper},
     AppState, cache_fetch,
 };
+
 use entities::user::Model;
 use moka::future::Cache;
 use sea_orm::DatabaseConnection;
