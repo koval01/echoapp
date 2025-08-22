@@ -10,6 +10,7 @@ pub struct Config {
     pub redis_url: Result<String, VarError>,
     pub server_bind_addr: String,
     pub bot_token: String,
+    pub jwt_secret: String,
 }
 
 impl Config {
@@ -21,6 +22,7 @@ impl Config {
         let redis_url = env::var("REDIS_URL");
         let server_bind_addr = env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:8000".to_string());
         let bot_token = env::var("BOT_TOKEN").expect("BOT_TOKEN must be set");
+        let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
 
         Self {
             session_maxage: session_maxage.parse::<i32>().unwrap(),
@@ -30,6 +32,7 @@ impl Config {
             redis_url,
             server_bind_addr,
             bot_token,
+            jwt_secret,
         }
     }
 }
