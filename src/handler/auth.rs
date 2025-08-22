@@ -46,6 +46,7 @@ pub async fn auth_handler_get(
 
     let state = state.read().await;
     let key: Hmac<Sha256> = Hmac::new_from_slice(&state.config.jwt_secret.as_bytes())?;
+
     let mut claims = BTreeMap::new();
     claims.insert("sub", Value::String(String::from(user.id)));
     let now = OffsetDateTime::now_utc();
