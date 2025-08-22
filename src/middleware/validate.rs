@@ -20,10 +20,10 @@ pub async fn validate_middleware(
         .headers()
         .get("X-InitData")
         .and_then(|value| value.to_str().ok())
-        .ok_or(ApiError::BadRequest)?;
+        .ok_or(ApiError::Unauthorized)?;
 
     let decoded_init_data = urlencoding::decode(init_data)
-        .map_err(|_| ApiError::BadRequest)?
+        .map_err(|_| ApiError::Unauthorized)?
         .into_owned();
 
     match crate::util::validator::validate_init_data(&decoded_init_data, &state.config.bot_token) {
