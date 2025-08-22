@@ -25,18 +25,19 @@ pub async fn auth_handler_get(
     State(state): State<Arc<RwLock<AppState>>>,
     jar: CookieJar,
 ) -> Result<(CookieJar, Json<ApiResponse<Model>>), ApiError> {
-    // Fetch user with caching
-    let user_model = fetch_user_with_cache(user.id, &db, redis_pool, moka_cache).await?;
+    let user_model = fetch_user_with_cache(
+        user.id, &db, redis_pool, moka_cache
+    ).await?;
 
-    // Generate JWT token
-    let token = generate_auth_token(&state, user_model.id).await?;
+    let token = generate_auth_token(
+        &state, user_model.id
+    ).await?;
 
-    // Add auth cookie
-    let updated_jar = CookieService::add_auth_cookie(jar, &token, 10);
+    let updated_jar = CookieService::add_auth_cookie(
+        jar, &token, 8
+    );
 
-    // Prepare response
     let response = ApiResponse::success(user_model);
-
     Ok((updated_jar, Json(response)))
 }
 
@@ -70,6 +71,6 @@ async fn generate_auth_token(
     let jwt_service = JwtService::new(&state_guard.config.jwt_secret)?;
 
     jwt_service
-        .generate_token(user_id, 10)
+        .generate_token(user_id, 8)
         .map_err(ApiError::from)
 }
