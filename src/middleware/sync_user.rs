@@ -14,7 +14,7 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use entities::user;
 use crate::model::user::User;
-use crate::service::{create_user, get_user_by_id, get_user_by_telegram_id};
+use crate::service::{create_user, get_user_by_telegram_id};
 use crate::util::cache::CacheBackend;
 
 pub async fn sync_user_middleware(

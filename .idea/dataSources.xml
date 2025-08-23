@@ -8,5 +8,12 @@
       <jdbc-url>jdbc:postgresql://ep-little-thunder-adg3cjt3-pooler.c-2.us-east-1.aws.neon.tech:5432/neondb</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="0@redis-15115.c250.eu-central-1-1.ec2.redns.redis-cloud.com" uuid="9daa88b6-5bcf-4691-923c-6e814c7c5ca4">
+      <driver-ref>redis</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>jdbc.RedisDriver</jdbc-driver>
+      <jdbc-url>jdbc:redis://redis-15115.c250.eu-central-1-1.ec2.redns.redis-cloud.com:15115/0</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>
