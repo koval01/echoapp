@@ -8,7 +8,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    #[sea_orm(indexed)]
+    #[sea_orm(indexed, unique)]
     pub telegram_id: i64,
     pub first_name: String,
     pub last_name: Option<String>,

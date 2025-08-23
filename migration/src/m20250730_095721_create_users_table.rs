@@ -26,7 +26,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(User::TelegramId)
                             .big_integer()
-                            .not_null(),
+                            .not_null()
+                            .unique_key(),
                     )
                     .col(ColumnDef::new(User::FirstName).string().not_null())
                     .col(ColumnDef::new(User::LastName).string())
@@ -73,6 +74,7 @@ impl MigrationTrait for Migration {
                     .name("idx_users_telegram_id")
                     .table(User::Table)
                     .col(User::TelegramId)
+                    .unique()
                     .to_owned(),
             )
             .await?;
