@@ -43,13 +43,14 @@ async fn fetch_user(
 }
 
 pub async fn user_handler_get(
-    JWTExtractor(user): JWTExtractor<User>,
+    JWTExtractor(token): JWTExtractor,
     Extension(db): Extension<Arc<DatabaseConnection>>,
     Extension(redis_pool): Extension<CacheBackend>,
     Extension(moka_cache): Extension<Cache<String, String>>,
 ) -> Result<impl IntoResponse, ApiError> {
+    println!("{:#?}", token);
     fetch_user(
-        user.id,
+        0,
         db,
         redis_pool,
         moka_cache,

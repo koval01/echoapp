@@ -1,27 +1,22 @@
-use std::sync::Arc;
 use axum::{
     extract::FromRequestParts,
     http::request::Parts,
-    http::header::AUTHORIZATION,
 };
-use axum::http::StatusCode;
-use serde::de::DeserializeOwned;
-use crate::AppState;
+use axum::http::header::AUTHORIZATION;
 use crate::error::ApiError;
-use crate::service::JwtService;
 
-pub struct JWTExtractor<T>(pub T);
+pub struct JWTExtractor(pub String);
 
-impl<T> FromRequestParts<AppState> for JWTExtractor<T>
+impl<S> FromRequestParts<S> for JWTExtractor
 where
-    T: DeserializeOwned,
+    S: Send + Sync,
 {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let auth_header = parts.headers
             .get(AUTHORIZATION)
-            .ok_or_else(|| ApiError::Unauthorized)?
+            .ok_or(ApiError::Unauthorized)?
             .to_str()
             .map_err(|_| ApiError::Unauthorized)?;
 
@@ -29,17 +24,8 @@ where
             return Err(ApiError::Unauthorized);
         }
 
-        let token = &auth_header[7..].to_string();
+        let token = auth_header[7..].to_string();
 
-        let jwt_service = JwtService::new(&state.config.jwt_secret)
-            .map_err(|_| ApiError::Custom(StatusCode::INTERNAL_SERVER_ERROR, "JWT error".into()))?;
-
-        let claims_value = jwt_service.validate_token_to_value(token)
-            .map_err(|_| ApiError::Custom(StatusCode::INTERNAL_SERVER_ERROR, "JWT error".into()))?;
-
-        let data: T = serde_json::from_value(claims_value)
-            .map_err(|_| ApiError::Custom(StatusCode::INTERNAL_SERVER_ERROR, "Invalid token claims".into()))?;
-
-        Ok(JWTExtractor(data))
+        Ok(JWTExtractor(token))
     }
 }
