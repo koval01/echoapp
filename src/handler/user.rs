@@ -13,7 +13,7 @@ use crate::{
     service::get_user_by_id,
     util::cache::{CacheBackend, CacheWrapper},
 };
-use crate::extractor::{JWTExtractor, JwtPayload};
+use crate::extractor::JWTExtractor;
 
 async fn fetch_user(
     user_id: i64,
@@ -43,12 +43,11 @@ async fn fetch_user(
 }
 
 pub async fn user_handler_get(
-    JWTExtractor(jwt_token): JWTExtractor<JwtPayload>,
+    JWTExtractor(user_id): JWTExtractor,
     Extension(db): Extension<Arc<DatabaseConnection>>,
     Extension(redis_pool): Extension<CacheBackend>,
     Extension(moka_cache): Extension<Cache<String, String>>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user_id = jwt_token.sub.parse::<i64>().map_err(|_| ApiError::BadRequest)?;
     fetch_user(
         user_id,
         db,

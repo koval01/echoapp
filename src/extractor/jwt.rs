@@ -4,12 +4,11 @@ use axum::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use axum::http::header::AUTHORIZATION;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use crate::error::ApiError;
 
 #[derive(Deserialize, Debug)]
-pub struct JwtPayload {
+struct JwtPayload {
     pub aud: String,
     pub exp: i64,
     pub iat: i64,
@@ -17,11 +16,10 @@ pub struct JwtPayload {
     pub sub: String,
 }
 
-pub struct JWTExtractor<T>(pub T);
+pub struct JWTExtractor(pub i64);
 
-impl<T, S> FromRequestParts<S> for JWTExtractor<T>
+impl<S> FromRequestParts<S> for JWTExtractor
 where
-    T: DeserializeOwned,
     S: Send + Sync,
 {
     type Rejection = ApiError;
@@ -49,8 +47,8 @@ where
         let decoded_bytes = general_purpose::URL_SAFE_NO_PAD.decode(payload)
             .map_err(|_| ApiError::Unauthorized)?;
 
-        let data: T = serde_json::from_slice(&decoded_bytes)?;
-
-        Ok(JWTExtractor(data))
+        let data: JwtPayload = serde_json::from_slice(&decoded_bytes)?;
+        let user_id = data.sub.parse::<i64>().map_err(|_| ApiError::BadRequest)?;
+        Ok(JWTExtractor(user_id))
     }
 }
