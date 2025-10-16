@@ -60,7 +60,7 @@ async fn main() {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("") // tma-rust=info,tower_http=info
+                .parse("") // duolang=info,tower_http=info
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)

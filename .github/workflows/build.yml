@@ -2,7 +2,7 @@ name: Build and Push Docker Image
 
 env:
   CARGO_TERM_COLOR: always
-  DOCKER_IMAGE: koval01/tma-rust
+  DOCKER_IMAGE: koval01/duolang
 
 on:
   push:
@@ -50,25 +50,20 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: "tma-rust"
-          path: target/release/tma-rust
+          name: "duolang"
+          path: target/release/duolang
 
       - name: Get short SHA and current date
         id: vars
         shell: bash
         run: |
-          if [[ matrix.os == "windows-latest" ]]; then
-            echo "short_sha=${GITHUB_SHA::8}" >> $env:GITHUB_OUTPUT
-            echo "build_date=$(Get-Date -Format 'yyyy.MM.dd')" >> $env:GITHUB_OUTPUT
-          else
-            echo "short_sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
-            echo "build_date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
-          fi
+          echo "short_sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+          echo "build_date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
 
       - name: Prepare binaries for Docker
         run: |
           mkdir -p docker-files
-          cp target/release/tma-rust docker-files/
+          cp target/release/duolang docker-files/
 
       - name: Build Docker image for testing
         uses: docker/build-push-action@v5
@@ -78,22 +73,42 @@ jobs:
           load: true
           tags: ${{ env.DOCKER_IMAGE }}:test
 
-      - name: Test Docker image
+      - name: Test Docker image with development services
+        env:
+          DATABASE_URL: ""  # Empty to trigger development mode
+          REDIS_URL: ""     # Empty to trigger development mode  
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          # Start all services (app + db + redis)
+          docker-compose --profile development up -d
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Test health endpoint
+          curl -f http://localhost:3000/health || exit 1
+          
+          # Cleanup
+          docker-compose down
+
+      - name: Test Docker image with external services
+        if: env.REDIS_URL != '' && env.DATABASE_URL != ''
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
-          docker run -d --name test-container \
-            -e REDIS_URL="${REDIS_URL}" \
-            -e DATABASE_URL="${DATABASE_URL}" \
-            -e BOT_TOKEN="${BOT_TOKEN}" \
-            -p 8000:8000 \
-            ${{ env.DOCKER_IMAGE }}:test
+          # Start only the app service (using external db/redis)
+          docker-compose up -d
           
+          # Wait for app to be ready
           sleep 20
-
-          docker exec test-container curl -f http://localhost:8000/healthz || exit 1
-          docker stop test-container
-          docker rm test-container
+          
+          # Test health endpoint
+          curl -f http://localhost:3000/health || exit 1
+          
+          # Cleanup
+          docker-compose down
 
       - name: Login to Docker Hub
         if: github.event_name != 'pull_request'
@@ -115,7 +130,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          files: target/release/tma-rust
+          files: target/release/duolang
           name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
           tag_name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
         env:

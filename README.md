@@ -1,4 +1,4 @@
-# tma-rust
+# duolang
 
 For database flush:
 ```sql

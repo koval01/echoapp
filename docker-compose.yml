@@ -1,17 +1,71 @@
 version: '3.8'
 
 services:
-  tma-rust:
-    image: koval01/tma-rust:latest
-    container_name: rust-api
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+      - "8000:3000"
     environment:
+      - DATABASE_URL=${DATABASE_URL:-postgres://user:password@db:5432/duolang}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+
+      - SERVER_BIND="0.0.0.0:3000"
       - RUST_LOG=info
+
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-here}
+      - SESSION_MAXAGE=7200
+
+      - APP_ENV=${APP_ENV:-production}
+      - APP_NAME=duolang
+
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://your-frontend-domain.com}
+
+      - BOT_TOKEN=${BOT_TOKEN}
+      - SENTRY_DSN=${SENTRY_DSN}
+
+    profiles:
+      - always_run
     restart: unless-stopped
+    networks:
+      - app-network
+
+  # Database service - only runs if no external DATABASE_URL provided
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=duolang
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migration:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    profiles:
+      - development
+    networks:
+      - app-network
+
+  # Redis service - only runs if no external REDIS_URL provided
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    profiles:
+      - development
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,20 +1,48 @@
-FROM debian:trixie-slim
+# Use official Rust image for building
+FROM rust:1.89-alpine as builder
+
+# Install build dependencies
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
+
+# Create app directory
+WORKDIR /app
+
+# Copy manifests
+COPY Cargo.toml Cargo.lock ./
+COPY entities/Cargo.toml ./entities/
+COPY migration/Cargo.toml ./migration/
+
+# Copy source code
+COPY src ./src
+COPY entities/src ./entities/src
+COPY migration/src ./migration/src
+
+# Build the application
+RUN cargo build --release
+
+# Runtime stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates openssl curl
+
+# Create non-root user
+RUN addgroup -S app && adduser -S app -G app
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y libssl3 libc6 ca-certificates curl && \
-    rm -rf /var/lib/apt/lists/*
+# Copy binary from builder stage
+COPY --from=builder /app/target/release/duolang /app/duolang
 
-COPY docker-files/tma-rust /app/tma-rust
+# Change to non-root user
+USER app
 
-RUN chmod +x /app/tma-rust
+# Expose port (adjust if your app uses a different port)
+EXPOSE 3000
 
-ENV RUST_LOG=info
+# Health check - make sure this matches your actual health endpoint
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/healthz || exit 1
 
-EXPOSE 8000
-
-CMD ["./tma-rust"]
-
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
-  CMD curl -f http://localhost:8000/healthz || exit 1
+# Run the application
+CMD ["/app/duolang"]

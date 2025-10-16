@@ -1137,6 +1137,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
+name = "duolang"
+version = "0.1.0"
+dependencies = [
+ "ahash 0.8.12",
+ "anyhow",
+ "axum",
+ "axum-extra",
+ "base64 0.22.1",
+ "bb8",
+ "bb8-redis",
+ "ed25519-dalek",
+ "entities",
+ "hex",
+ "hmac",
+ "jwt",
+ "migration",
+ "moka",
+ "num_cpus",
+ "rand 0.9.2",
+ "redis",
+ "reqwest",
+ "sea-orm",
+ "sentry",
+ "sentry-tower",
+ "serde",
+ "serde_json",
+ "sha2",
+ "subtle",
+ "time",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "urlencoding",
+ "uuid",
+]
+
+[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3953,46 +3993,6 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
-
-[[package]]
-name = "tma-rust"
-version = "0.1.0"
-dependencies = [
- "ahash 0.8.12",
- "anyhow",
- "axum",
- "axum-extra",
- "base64 0.22.1",
- "bb8",
- "bb8-redis",
- "ed25519-dalek",
- "entities",
- "hex",
- "hmac",
- "jwt",
- "migration",
- "moka",
- "num_cpus",
- "rand 0.9.2",
- "redis",
- "reqwest",
- "sea-orm",
- "sentry",
- "sentry-tower",
- "serde",
- "serde_json",
- "sha2",
- "subtle",
- "time",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "url",
- "urlencoding",
- "uuid",
-]
 
 [[package]]
 name = "tokio"
