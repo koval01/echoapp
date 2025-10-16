@@ -71,6 +71,55 @@ impl JwtService {
             expiration: exp,
         })
     }
+    pub fn validate_token_to_value(&self, token: &str) -> Result<serde_json::Value, Error> {
+        let claims: BTreeMap<String, Value> = token.verify_with_key(&self.key)?;
+
+        // Validate expiration
+        let exp = claims.get("exp")
+            .and_then(|v| v.as_i64())
+            .ok_or(Error::InvalidSignature)?;
+
+        let current_time = OffsetDateTime::now_utc().unix_timestamp();
+        if exp < current_time {
+            return Err(Error::InvalidSignature);
+        }
+
+        // Validate issuer and audience
+        if let Some(iss) = claims.get("iss") {
+            if iss != "duolang" {
+                return Err(Error::InvalidSignature);
+            }
+        }
+
+        // Convert BTreeMap to Value
+        Ok(serde_json::Value::Object(
+            claims.into_iter().map(|(k, v)| (k, v)).collect()
+        ))
+    }
+
+    // Альтернативный метод: возвращает BTreeMap для большей гибкости
+    pub fn validate_token_to_map(&self, token: &str) -> Result<BTreeMap<String, Value>, Error> {
+        let claims: BTreeMap<String, Value> = token.verify_with_key(&self.key)?;
+
+        // Validate expiration
+        let exp = claims.get("exp")
+            .and_then(|v| v.as_i64())
+            .ok_or(Error::InvalidSignature)?;
+
+        let current_time = OffsetDateTime::now_utc().unix_timestamp();
+        if exp < current_time {
+            return Err(Error::InvalidSignature);
+        }
+
+        // Validate issuer and audience
+        if let Some(iss) = claims.get("iss") {
+            if iss != "duolang" {
+                return Err(Error::InvalidSignature);
+            }
+        }
+
+        Ok(claims)
+    }
 
     pub fn validate_and_refresh(&self, token: &str, refresh_threshold_hours: i64) -> Result<(JwtClaims, Option<String>), Error> {
         let claims = self.validate_token(token)?;

@@ -13,6 +13,7 @@ use crate::{
     service::get_user_by_id,
     util::cache::{CacheBackend, CacheWrapper},
 };
+use crate::extractor::JWTExtractor;
 
 async fn fetch_user(
     user_id: i64,
@@ -42,7 +43,7 @@ async fn fetch_user(
 }
 
 pub async fn user_handler_get(
-    InitData(user): InitData<User>,
+    JWTExtractor(user): JWTExtractor<User>,
     Extension(db): Extension<Arc<DatabaseConnection>>,
     Extension(redis_pool): Extension<CacheBackend>,
     Extension(moka_cache): Extension<Cache<String, String>>,
