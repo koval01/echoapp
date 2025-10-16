@@ -1,5 +1,5 @@
 pub(crate) mod database;
-mod jwt;
+pub(crate) mod jwt;
 mod cookie;
 
 pub use database::*;
