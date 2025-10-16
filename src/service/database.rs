@@ -8,20 +8,11 @@ use crate::model::user::User;
 
 #[allow(dead_code)]
 pub async fn get_user_by_id(
-    user_id: uuid::Uuid,
-    db: &Arc<DatabaseConnection>,
-) -> Result<Option<user::Model>, DbErr> {
-    user::Entity::find_by_id(user_id)
-        .one(db.as_ref())
-        .await
-}
-
-pub async fn get_user_by_telegram_id(
-    telegram_id: i64,
+    user_id: i64,
     db: &Arc<DatabaseConnection>,
 ) -> Result<Option<user::Model>, DbErr> {
     user::Entity::find()
-        .filter(user::Column::TelegramId.eq(telegram_id))
+        .filter(user::Column::TelegramId.eq(user_id))
         .one(db.as_ref())
         .await
 }
@@ -30,7 +21,7 @@ pub async fn create_user(
     user: User,
     db: &Arc<DatabaseConnection>,
 ) -> Result<user::Model> {
-    let user_exists = get_user_by_telegram_id(user.id, db)
+    let user_exists = get_user_by_id(user.id, db)
         .await?;
 
     if user_exists.is_some() {

@@ -5,8 +5,8 @@ use sea_orm::DatabaseConnection;
 use entities::user;
 
 use crate::{error::ApiError, model::user::User, response::{ApiResponse}, extractor::InitData, cache_fetch};
-use crate::extractor::StrictUuid;
-use crate::service::{get_user_by_id, get_user_by_telegram_id};
+use crate::extractor::StrictI64;
+use crate::service::get_user_by_id;
 use crate::util::cache::{CacheBackend, CacheWrapper};
 
 pub async fn user_handler_get(
@@ -26,7 +26,7 @@ pub async fn user_handler_get(
         cache,
         &format!("user:{}", &user.id),
         async {
-            match get_user_by_telegram_id(user.id, &db).await {
+            match get_user_by_id(user.id, &db).await {
                 Ok(Some(user)) => Ok(Some(user)),
                 Ok(None) => Err(ApiError::NotFound("User not found".to_string())),
                 Err(e) => Err(ApiError::from(e)),
@@ -39,7 +39,7 @@ pub async fn user_handler_get(
 }
 
 pub async fn user_by_id_handler_get(
-    StrictUuid(user_id): StrictUuid,
+    StrictI64(user_id): StrictI64,
     Extension(db): Extension<Arc<DatabaseConnection>>,
     Extension(redis_pool): Extension<CacheBackend>,
     Extension(moka_cache): Extension<Cache<String, String>>,

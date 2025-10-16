@@ -15,7 +15,7 @@ impl JwtService {
         Ok(Self { key })
     }
 
-    pub fn generate_token(&self, user_id: uuid::Uuid, expiration_hours: i64) -> Result<String, Error> {
+    pub fn generate_token(&self, user_id: i64, expiration_hours: i64) -> Result<String, Error> {
         let mut claims = BTreeMap::new();
 
         claims.insert("sub", Value::String(user_id.to_string()));
