@@ -52,7 +52,7 @@ pub async fn validate_jwt_middleware(
     next: Next,
 ) -> Result<impl IntoResponse, ApiError> {
     let state = state.read().await;
-    let token = req
+    let header_auth = req
         .headers()
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
@@ -60,6 +60,8 @@ pub async fn validate_jwt_middleware(
 
     let jwt_service = JwtService::new(&state.config.jwt_secret)
         .map_err(|_| ApiError::Custom(StatusCode::INTERNAL_SERVER_ERROR, "JWT error".into()))?;
+
+    let token = extract_bearer_token(header_auth).unwrap();
 
     match jwt_service.validate_token(&token) {
         Ok(claims) => {
