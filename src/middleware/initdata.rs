@@ -32,6 +32,6 @@ pub async fn validate_initdata_middleware(
             Ok(next.run(req).await)
         },
         Ok(false) => Err(ApiError::Unauthorized),
-        Err(_) => Err(ApiError::BadRequest),
+        Err(_) => Err(ApiError::Unauthorized),
     }
 }
