@@ -71,6 +71,6 @@ async fn generate_auth_token(
     let jwt_service = JwtService::new(&state_guard.config.jwt_secret)?;
 
     jwt_service
-        .generate_token(user_id, 8)
+        .generate_token(user_id, state_guard.config.session_maxage)
         .map_err(ApiError::from)
 }

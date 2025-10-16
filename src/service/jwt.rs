@@ -24,12 +24,12 @@ impl JwtService {
         Ok(Self { key })
     }
 
-    pub fn generate_token(&self, user_id: i64, expiration_hours: i64) -> Result<String, Error> {
+    pub fn generate_token(&self, user_id: i64, expiration_seconds: i64) -> Result<String, Error> {
         let mut claims = BTreeMap::new();
 
         claims.insert("sub", Value::String(user_id.to_string()));
         claims.insert("iat", Value::Number(OffsetDateTime::now_utc().unix_timestamp().into()));
-        claims.insert("exp", Value::Number((OffsetDateTime::now_utc() + Duration::hours(expiration_hours)).unix_timestamp().into()));
+        claims.insert("exp", Value::Number((OffsetDateTime::now_utc() + Duration::seconds(expiration_seconds)).unix_timestamp().into()));
         claims.insert("iss", Value::String("duolang".to_string()));
         claims.insert("aud", Value::String("users".to_string()));
 
