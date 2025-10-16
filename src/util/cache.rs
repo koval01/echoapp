@@ -62,7 +62,6 @@ impl<T> CacheWrapper<T>
 where
     T: Serialize + DeserializeOwned + Send + Sync,
 {
-    /// Constructor for CacheWrapper
     pub fn new(
         backend: CacheBackend,
         moka_cache: Cache<String, String>,
@@ -78,7 +77,6 @@ where
         }
     }
 
-    /// Attempts to retrieve the value from Moka, Redis (if enabled), or via the provided fetch function.
     pub async fn get_or_fetch<F, Fut, E>(
         &self,
         key: &str,

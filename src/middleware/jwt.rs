@@ -39,7 +39,6 @@ pub async fn validate_jwt_middleware(
 
     match jwt_service.validate_token(&token) {
         Ok(claims) => {
-            // Add user info to request extensions
             let auth_user = AuthUser {
                 user_id: claims.user_id,
                 session_id: generate_session_id(),

@@ -43,7 +43,6 @@ pub async fn auth_handler_get(
     Ok((updated_jar, Json(response)))
 }
 
-/// Fetches user from cache or database
 async fn fetch_user_with_cache(
     user_id: i64,
     db: &Arc<DatabaseConnection>,
@@ -64,7 +63,6 @@ async fn fetch_user_with_cache(
     user_option.map_err(|_| ApiError::NotFound("User not found".to_string()))
 }
 
-/// Generates JWT authentication token
 async fn generate_auth_token(
     state: &Arc<RwLock<AppState>>,
     user_id: i64,
