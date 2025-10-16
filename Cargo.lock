@@ -3972,6 +3972,7 @@ dependencies = [
  "migration",
  "moka",
  "num_cpus",
+ "rand 0.8.5",
  "redis",
  "reqwest",
  "sea-orm",

@@ -11,7 +11,7 @@ use crate::{handler::{
     health_checker_handler,
 }, error::ApiError, AppState};
 use crate::handler::{auth_handler_get, user_by_id_handler_get, user_handler_get};
-use crate::middleware::{sync_user_middleware, validate_initdata_middleware};
+use crate::middleware::{sync_user_middleware, validate_initdata_middleware, validate_jwt_middleware};
 
 pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
     // Routes without auth middleware
@@ -40,10 +40,12 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
             protected_middlewares
         );
 
-    let auth_middlewares = ServiceBuilder::new();
+    let auth_middlewares = ServiceBuilder::new()
+        .layer(axum::middleware::from_fn_with_state(app_state.clone(), validate_jwt_middleware))
+        .into_inner();
 
     // Routes with auth middleware
-    let protected_routes = Router::new()
+    let auth_routes = Router::new()
         .route(
             "/v1/user/me",
             get(user_handler_get)
@@ -60,6 +62,7 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
     Router::new()
         .merge(public_routes)
         .merge(protected_routes)
+        .merge(auth_routes)
         .with_state(app_state)
         .fallback(|| async { ApiError::NotFound("not found".to_string()).into_response() })
 }
