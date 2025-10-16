@@ -40,19 +40,21 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
             protected_middlewares
         );
 
+    let auth_middlewares = ServiceBuilder::new();
+
     // Routes with auth middleware
-    // let protected_routes = Router::new()
-    //     .route(
-    //         "/v1/user/me",
-    //         get(user_handler_get)
-    //     )
-    //     .route(
-    //         "/v1/user/{user_id}",
-    //         get(user_by_id_handler_get)
-    //     )
-    //     .layer(
-    //         protected_middlewares
-    //     );
+    let protected_routes = Router::new()
+        .route(
+            "/v1/user/me",
+            get(user_handler_get)
+        )
+        .route(
+            "/v1/user/{user_id}",
+            get(user_by_id_handler_get)
+        )
+        .layer(
+            auth_middlewares
+        );
 
     // Merge routes and add shared state and fallback
     Router::new()
