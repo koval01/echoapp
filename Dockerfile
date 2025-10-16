@@ -18,7 +18,7 @@ COPY entities/src ./entities/src
 COPY migration/src ./migration/src
 
 # Build the application
-RUN cargo build --release
+RUN cargo build --color=always --profile release
 
 # Runtime stage
 FROM alpine:latest
@@ -41,7 +41,7 @@ USER app
 EXPOSE 3000
 
 # Health check - make sure this matches your actual health endpoint
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=3s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/healthz || exit 1
 
 # Run the application
