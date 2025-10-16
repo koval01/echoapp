@@ -52,6 +52,7 @@ pub async fn sync_user_middleware(
     Ok(next.run(request).await)
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn needs_update(init_user: &User, db_user: &user::Model) -> bool {
     init_user.first_name != db_user.first_name

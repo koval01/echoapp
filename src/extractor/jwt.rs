@@ -9,10 +9,6 @@ use crate::error::ApiError;
 
 #[derive(Deserialize, Debug)]
 struct JwtPayload {
-    pub aud: String,
-    pub exp: i64,
-    pub iat: i64,
-    pub iss: String,
     pub sub: String,
 }
 

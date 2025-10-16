@@ -8,7 +8,9 @@ use time::{Duration, OffsetDateTime};
 #[derive(Debug, Clone)]
 pub struct JwtClaims {
     pub user_id: i64,
+    #[allow(dead_code)]
     pub issued_at: i64,
+    #[allow(dead_code)]
     pub expiration: i64,
 }
 
@@ -71,7 +73,9 @@ impl JwtService {
             expiration: exp,
         })
     }
-    pub fn validate_token_to_value(&self, token: &str) -> Result<serde_json::Value, Error> {
+
+    #[allow(dead_code)]
+    pub fn validate_token_to_value(&self, token: &str) -> Result<Value, Error> {
         let claims: BTreeMap<String, Value> = token.verify_with_key(&self.key)?;
 
         // Validate expiration
@@ -92,12 +96,12 @@ impl JwtService {
         }
 
         // Convert BTreeMap to Value
-        Ok(serde_json::Value::Object(
+        Ok(Value::Object(
             claims.into_iter().map(|(k, v)| (k, v)).collect()
         ))
     }
 
-    // Альтернативный метод: возвращает BTreeMap для большей гибкости
+    #[allow(dead_code)]
     pub fn validate_token_to_map(&self, token: &str) -> Result<BTreeMap<String, Value>, Error> {
         let claims: BTreeMap<String, Value> = token.verify_with_key(&self.key)?;
 
@@ -121,6 +125,7 @@ impl JwtService {
         Ok(claims)
     }
 
+    #[allow(dead_code)]
     pub fn validate_and_refresh(&self, token: &str, refresh_threshold_hours: i64) -> Result<(JwtClaims, Option<String>), Error> {
         let claims = self.validate_token(token)?;
 

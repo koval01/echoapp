@@ -7,6 +7,7 @@ use axum::extract::Path;
 use uuid::Uuid;
 use crate::error::ApiError;
 
+#[allow(dead_code)]
 pub struct StrictUuid(pub Uuid);
 
 impl<S> FromRequestParts<S> for StrictUuid

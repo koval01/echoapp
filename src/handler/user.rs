@@ -6,9 +6,8 @@ use entities::user;
 
 use crate::{
     error::ApiError,
-    model::user::User,
     response::ApiResponse,
-    extractor::{InitData, StrictI64},
+    extractor::StrictI64,
     cache_fetch,
     service::get_user_by_id,
     util::cache::{CacheBackend, CacheWrapper},
