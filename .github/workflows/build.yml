@@ -109,9 +109,9 @@ jobs:
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
           
-          # Cleanup
+          # Cleanup - stop all services including those with development profile
           echo "Cleaning up..."
-          docker-compose down
+          docker-compose --profile development down
 
       - name: Check if external services are available
         id: check_external_services
