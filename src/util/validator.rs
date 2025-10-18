@@ -56,19 +56,19 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
         return Err("auth_date expired");
     }
 
-    // First try to validate with Ed25519 signature if present
-    if let Some(signature) = received_signature {
-        if validate_with_ed25519(&params, signature, bot_token)? {
-            return Ok(true);
-        }
-    }
+    let hmac_valid = if let Some(hash) = received_hash {
+        validate_with_hmac(&params, hash, bot_token)?
+    } else {
+        return Err("Missing 'hash' parameter for HMAC validation");
+    };
 
-    // Fall back to HMAC validation if signature validation fails or isn't present
-    if let Some(hash) = received_hash {
-        return validate_with_hmac(&params, hash, bot_token);
-    }
+    let signature_valid = if let Some(signature) = received_signature {
+        validate_with_ed25519(&params, signature, bot_token)?
+    } else {
+        return Err("Missing 'signature' parameter for Ed25519 validation");
+    };
 
-    Err("Neither hash nor signature provided for validation")
+    Ok(hmac_valid && signature_valid)
 }
 
 fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str, bot_token: &str) -> Result<bool, &'static str> {
