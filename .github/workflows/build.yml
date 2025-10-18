@@ -79,6 +79,11 @@ jobs:
           load: true
           tags: ${{ env.DOCKER_IMAGE }}:test
 
+      - name: Install python dependencies
+        run: |
+          python3 --version
+          pip3 install -U pip requests cryptography rich --break-system-packages
+
       - name: Test Docker image with development services
         env:
           DATABASE_URL: ""  # Empty to trigger development mode
