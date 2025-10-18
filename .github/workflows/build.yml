@@ -117,8 +117,17 @@ jobs:
           echo "Cleaning up..."
           docker-compose down
 
+      - name: Check if external services are available
+        id: check_external_services
+        run: |
+          if [ -n "${{ secrets.REDIS_URL }}" ] && [ -n "${{ secrets.DATABASE_URL }}" ]; then
+            echo "external_services_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "external_services_available=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Test Docker image with external services
-        if: secrets.REDIS_URL != '' && secrets.DATABASE_URL != ''
+        if: steps.check_external_services.outputs.external_services_available == 'true'
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
