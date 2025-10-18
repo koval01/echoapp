@@ -26,7 +26,7 @@ pub async fn validate_initdata_middleware(
         .map_err(|_| ApiError::Unauthorized)?
         .into_owned();
 
-    match crate::util::validator::validate_init_data(&decoded_init_data, &state.config.bot_token) {
+    match crate::util::validator::validate_init_data(&decoded_init_data, &state.config.bot_token, &state.config.test_pub_key) {
         Ok(true) => {
             req.extensions_mut().insert(decoded_init_data);
             Ok(next.run(req).await)

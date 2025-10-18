@@ -10,11 +10,10 @@ use base64::engine::general_purpose;
 
 type HmacSha256 = Hmac<Sha256>;
 
-// Telegram's Ed25519 public keys
-const TELEGRAM_TEST_PUBLIC_KEY: &str = "40055058a4ee38156a06562e52eece92a771bcd8346a8c4615cb7376eddf72ec";
-const TELEGRAM_PRODUCTION_PUBLIC_KEY: &str = "e7bf03a2fa4602af4580703d88dda5bb59f32ed8b02a56c187fe7d34caed242d";
+// Telegram's Ed25519 public key
+const TELEGRAM_PUBLIC_KEY: &str = "e7bf03a2fa4602af4580703d88dda5bb59f32ed8b02a56c187fe7d34caed242d";
 
-pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'static str> {
+pub fn validate_init_data(init_data: &str, bot_token: &str, test_pub_key: &str) -> Result<bool, &'static str> {
     if init_data.len() > 1024 {
         return Err("Input data too long");
     }
@@ -67,7 +66,7 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
 
     // For Ed25519 validation, we need all parameters except signature
     let signature_valid = if let Some(signature) = received_signature {
-        validate_with_ed25519(&params, signature, bot_token)?
+        validate_with_ed25519(&params, signature, bot_token, test_pub_key)?
     } else {
         return Err("Missing 'signature' parameter for Ed25519 validation");
     };
@@ -125,7 +124,8 @@ fn validate_with_hmac(
 fn validate_with_ed25519(
     params: &AHashMap<&str, &str>,
     signature: &str,
-    bot_token: &str
+    bot_token: &str,
+    test_pub_key: &str
 ) -> Result<bool, &'static str> {
     let bot_id = bot_token.split(':').next().ok_or("Invalid bot token format")?;
 
@@ -147,9 +147,9 @@ fn validate_with_ed25519(
 
     // Get the appropriate public key
     let public_key_hex = if cfg!(test) {
-        TELEGRAM_TEST_PUBLIC_KEY
+        test_pub_key
     } else {
-        TELEGRAM_PRODUCTION_PUBLIC_KEY
+        TELEGRAM_PUBLIC_KEY
     };
 
     // Convert hex public key to bytes

@@ -11,6 +11,7 @@ pub struct Config {
     pub server_bind_addr: String,
     pub bot_token: String,
     pub jwt_secret: String,
+    pub test_pub_key: String,
 }
 
 impl Config {
@@ -23,6 +24,7 @@ impl Config {
         let server_bind_addr = env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:8000".to_string());
         let bot_token = env::var("BOT_TOKEN").expect("BOT_TOKEN must be set");
         let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+        let test_pub_key = env::var("TEST_PUBLIC_KEY").unwrap_or_else(|_| "".to_string());
 
         Self {
             session_maxage: session_maxage.parse::<i64>().unwrap(),
@@ -33,6 +35,7 @@ impl Config {
             server_bind_addr,
             bot_token,
             jwt_secret,
+            test_pub_key
         }
     }
 }
