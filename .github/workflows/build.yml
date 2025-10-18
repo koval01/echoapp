@@ -90,6 +90,8 @@ jobs:
           REDIS_URL: ""     # Empty to trigger development mode
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           SENTRY_DSN: ""    # Add this to prevent the warning
+          TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
+          TEST_PUBLIC_KEY: ${{ secrets.TEST_PUBLIC_KEY }}
         run: |
           # Debug: Show compose file structure
           echo "Checking docker-compose file..."
@@ -114,6 +116,9 @@ jobs:
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
           
+          # Test script
+          python3 scripts/test_api.py --verbose --base-url "http://localhost:8000"
+          
           # Cleanup - stop all services including those with development profile
           echo "Cleaning up..."
           docker-compose --profile development down
@@ -134,6 +139,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           SENTRY_DSN: ""
+          TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
+          TEST_PUBLIC_KEY: ${{ secrets.TEST_PUBLIC_KEY }}
         run: |
           # Start only the app service (using external db/redis)
           echo "Starting app with external services..."
@@ -153,6 +160,9 @@ jobs:
           # Test health endpoint
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
+          
+          # Test script
+          python3 scripts/test_api.py --verbose --base-url "http://localhost:8000"
           
           # Cleanup
           echo "Cleaning up..."
