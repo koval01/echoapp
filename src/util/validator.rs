@@ -30,11 +30,13 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
     for pair in init_data.split('&') {
         if let Some(sep_idx) = pair.find('=') {
             let (key, value) = pair.split_at(sep_idx);
+            let value = &value[1..]; // Remove the '=' character
+
             match key {
-                "hash" => received_hash = Some(&value[1..]),
-                "signature" => received_signature = Some(&value[1..]),
+                "hash" => received_hash = Some(value),
+                "signature" => received_signature = Some(value),
                 _ => {
-                    params.insert(key, &value[1..]);
+                    params.insert(key, value);
                 }
             }
         }
@@ -52,16 +54,18 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
         .map_err(|_| "System time is before UNIX epoch")?
         .as_secs();
 
-    if current_time > auth_date + 60 {
+    if current_time > auth_date + 50 {
         return Err("auth_date expired");
     }
 
+    // For HMAC validation, we need all parameters except hash (but including signature)
     let hmac_valid = if let Some(hash) = received_hash {
-        validate_with_hmac(&params, hash, bot_token)?
+        validate_with_hmac(&params, received_signature, hash, bot_token)?
     } else {
         return Err("Missing 'hash' parameter for HMAC validation");
     };
 
+    // For Ed25519 validation, we need all parameters except signature
     let signature_valid = if let Some(signature) = received_signature {
         validate_with_ed25519(&params, signature, bot_token)?
     } else {
@@ -71,7 +75,12 @@ pub fn validate_init_data(init_data: &str, bot_token: &str) -> Result<bool, &'st
     Ok(hmac_valid && signature_valid)
 }
 
-fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str, bot_token: &str) -> Result<bool, &'static str> {
+fn validate_with_hmac(
+    params: &AHashMap<&str, &str>,
+    signature: Option<&str>,
+    received_hash: &str,
+    bot_token: &str
+) -> Result<bool, &'static str> {
     // Compute secret key from bot_token
     // Telegram requirement: secret_key = HMAC_SHA256("WebAppData", bot_token)
     let mut mac = HmacSha256::new_from_slice(b"WebAppData")
@@ -79,8 +88,15 @@ fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str, bot_to
     mac.update(bot_token.as_bytes());
     let secret_key = mac.finalize().into_bytes();
 
-    let mut pairs: Vec<(String, String)> = Vec::with_capacity(params.len());
-    for (k, v) in params {
+    // Create a new map that includes all original params plus signature (if present)
+    // but excludes hash
+    let mut hmac_params = params.clone();
+    if let Some(sig) = signature {
+        hmac_params.insert("signature", sig);
+    }
+
+    let mut pairs: Vec<(String, String)> = Vec::with_capacity(hmac_params.len());
+    for (k, v) in &hmac_params {
         pairs.push((k.to_string(), v.to_string()));
     }
     pairs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -106,9 +122,14 @@ fn validate_with_hmac(params: &AHashMap<&str, &str>, received_hash: &str, bot_to
     Ok(ok)
 }
 
-fn validate_with_ed25519(params: &AHashMap<&str, &str>, signature: &str, bot_token: &str) -> Result<bool, &'static str> {
+fn validate_with_ed25519(
+    params: &AHashMap<&str, &str>,
+    signature: &str,
+    bot_token: &str
+) -> Result<bool, &'static str> {
     let bot_id = bot_token.split(':').next().ok_or("Invalid bot token format")?;
 
+    // For Ed25519 validation, we use all parameters except signature
     let mut pairs: Vec<(String, String)> = Vec::with_capacity(params.len());
     for (k, v) in params {
         pairs.push((k.to_string(), v.to_string()));
