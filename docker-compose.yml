@@ -17,6 +17,7 @@ services:
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
       - BOT_TOKEN=${BOT_TOKEN}
       - SENTRY_DSN=${SENTRY_DSN}
+
     depends_on:
       db:
         condition: service_healthy
@@ -31,8 +32,8 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+    profiles: [development, production]
 
-  # Database service - only runs if no external DATABASE_URL provided
   db:
     image: postgres:15-alpine
     environment:
@@ -50,12 +51,10 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    profiles:
-      - development
+    profiles: [development]
     networks:
       - app-network
 
-  # Redis service - only runs if no external REDIS_URL provided
   redis:
     image: redis:7-alpine
     ports:
@@ -68,8 +67,7 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
-    profiles:
-      - development
+    profiles: [development]
     networks:
       - app-network
 
