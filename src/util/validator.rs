@@ -146,7 +146,7 @@ fn validate_with_ed25519(
     );
 
     // Get the appropriate public key
-    let public_key_hex = if cfg!(test) {
+    let public_key_hex = if !test_pub_key.is_empty() {
         test_pub_key
     } else {
         TELEGRAM_PUBLIC_KEY
