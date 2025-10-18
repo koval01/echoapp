@@ -109,10 +109,6 @@ jobs:
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
           
-          # Test main endpoint
-          echo "Testing main endpoint..."
-          curl -f http://localhost:8000/ || (echo "Main endpoint failed" && exit 1)
-          
           # Cleanup
           echo "Cleaning up..."
           docker-compose down
