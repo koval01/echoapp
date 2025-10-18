@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y pkg-config libssl-dev build-essential
+          sudo apt-get install -y pkg-config libssl-dev build-essential curl
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -49,7 +49,7 @@ jobs:
 
       - name: Install Docker Compose
         run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/v2.40.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
           docker-compose --version
 
@@ -82,38 +82,70 @@ jobs:
       - name: Test Docker image with development services
         env:
           DATABASE_URL: ""  # Empty to trigger development mode
-          REDIS_URL: ""     # Empty to trigger development mode  
+          REDIS_URL: ""     # Empty to trigger development mode
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          SENTRY_DSN: ""    # Add this to prevent the warning
         run: |
+          # Debug: Show compose file structure
+          echo "Checking docker-compose file..."
+          docker-compose config
+          
           # Start all services (app + db + redis)
+          echo "Starting development services..."
           docker-compose --profile development up -d
           
-          # Wait for services to be ready
-          sleep 30
+          # Wait for services to be ready with health checks
+          echo "Waiting for services to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/healthz > /dev/null; then
+              echo "Service is ready!"
+              break
+            fi
+            echo "Waiting for service to be ready... ($i/30)"
+            sleep 5
+          done
           
           # Test health endpoint
-          curl -f http://localhost:8000/healthz || exit 1
+          echo "Testing health endpoint..."
+          curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
+          
+          # Test main endpoint
+          echo "Testing main endpoint..."
+          curl -f http://localhost:8000/ || (echo "Main endpoint failed" && exit 1)
           
           # Cleanup
+          echo "Cleaning up..."
           docker-compose down
 
       - name: Test Docker image with external services
-        if: env.REDIS_URL != '' && env.DATABASE_URL != ''
+        if: secrets.REDIS_URL != '' && secrets.DATABASE_URL != ''
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          SENTRY_DSN: ""
         run: |
           # Start only the app service (using external db/redis)
-          docker-compose up -d
+          echo "Starting app with external services..."
+          docker-compose up app -d
           
           # Wait for app to be ready
-          sleep 20
+          echo "Waiting for app to be ready..."
+          for i in {1..20}; do
+            if curl -s http://localhost:8000/healthz > /dev/null; then
+              echo "App is ready!"
+              break
+            fi
+            echo "Waiting for app to be ready... ($i/20)"
+            sleep 5
+          done
           
           # Test health endpoint
-          curl -f http://localhost:8000/healthz || exit 1
+          echo "Testing health endpoint..."
+          curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
           
           # Cleanup
+          echo "Cleaning up..."
           docker-compose down
 
       - name: Login to Docker Hub
