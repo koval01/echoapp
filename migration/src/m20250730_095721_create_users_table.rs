@@ -18,10 +18,16 @@ impl MigrationTrait for Migration {
                     .table(User::Table)
                     .if_not_exists()
                     .col(
+                        ColumnDef::new(User::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
                         ColumnDef::new(User::TelegramId)
                             .big_integer()
                             .not_null()
-                            .primary_key(),
+                            .unique_key(),
                     )
                     .col(ColumnDef::new(User::FirstName).string().not_null())
                     .col(ColumnDef::new(User::LastName).string())
@@ -61,6 +67,18 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Create indexes separately
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_users_telegram_id")
+                    .table(User::Table)
+                    .col(User::TelegramId)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
         manager
             .create_index(
                 Index::create()
@@ -73,6 +91,16 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Drop indexes first
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_users_telegram_id")
+                    .table(User::Table)
+                    .to_owned(),
+            )
+            .await?;
+
         manager
             .drop_index(
                 Index::drop()
@@ -93,6 +121,7 @@ impl MigrationTrait for Migration {
 enum User {
     #[sea_orm(iden = "users")]
     Table,
+    Id,
     TelegramId,
     FirstName,
     LastName,
