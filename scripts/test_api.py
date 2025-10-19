@@ -8,6 +8,7 @@ Features:
 - Clear, human-readable messages for HMAC / Ed25519 strings and computed values.
 - Shortened JWT display for logs.
 - Command-line switches for skipping the 60s wait and for verbose output.
+- Multi-user testing with user lookup functionality.
 
 Usage:
     export BOT_TOKEN=123456:ABC
@@ -30,7 +31,7 @@ import argparse
 import sys
 import logging
 from urllib.parse import quote
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 
@@ -40,6 +41,7 @@ try:
     from rich.logging import RichHandler
     from rich.panel import Panel
     from rich.syntax import Syntax
+    from rich.table import Table
     RICH_AVAILABLE = True
 except Exception:
     RICH_AVAILABLE = False
@@ -55,7 +57,7 @@ from cryptography.hazmat.primitives import serialization
 def configure_logging(verbose: bool = False) -> logging.Logger:
     """Configure and return a module-level logger.
 
-    If `rich` is installed, use RichHandler for nicer output. Otherwise use a
+    If `rich` is installed, use RichHandler for nicer output. Otherwise, use a
     standard formatter with timestamps.
     """
     level = logging.DEBUG if verbose else logging.INFO
@@ -82,11 +84,27 @@ def configure_logging(verbose: bool = False) -> logging.Logger:
 
 
 def pretty_panel(logger: logging.Logger, title: str, text: str) -> None:
-    """If rich is available, print a panel. Otherwise log normally."""
+    """If rich is available, print a panel. Otherwise, log normally."""
     if RICH_AVAILABLE:
         Console().print(Panel(text, title=title, expand=False))
     else:
         logger.info("%s:\n%s", title, text)
+
+
+def pretty_table(title: str, data: Dict[str, Any]) -> None:
+    """Display data in a table if rich is available."""
+    if not RICH_AVAILABLE:
+        return
+
+    console = Console()
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value", style="green")
+
+    for key, value in data.items():
+        table.add_row(str(key), str(value))
+
+    console.print(table)
 
 
 # -----------------------------
@@ -186,18 +204,19 @@ class TelegramInitDataGenerator:
         init_data = "&".join(encoded_pairs)
         return init_data
 
-    def generate_realistic_user_data(self, user_id: int = 1234567890) -> Dict[str, Any]:
+    def generate_realistic_user_data(self, user_id: int = 1234567890, username: str = "test_user",
+                                     first_name: str = "Test", last_name: str = "User") -> Dict[str, Any]:
         return {
             "user": {
                 "id": user_id,
-                "first_name": "Test",
-                "last_name": "User",
-                "username": "test_user",
+                "first_name": first_name,
+                "last_name": last_name,
+                "username": username,
                 "language_code": "en",
                 "allows_write_to_pm": True,
                 "photo_url": "https://t.me/i/userpic/320/nothing.svg",
             },
-            "chat_instance": "-1234567890",
+            "chat_instance": f"-{user_id}",
             "chat_type": "private",
         }
 
@@ -221,32 +240,29 @@ def pretty_json(data: Any) -> str:
         return str(data)
 
 
-def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, no_wait: bool, logger: logging.Logger) -> None:
-    """Perform the same sequence as the original script but log prettily.
+def authenticate_user(generator: TelegramInitDataGenerator, base_url: str, user_data: Dict[str, Any],
+                      logger: logging.Logger, user_name: str = "User") -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Authenticate a user and return their JWT token and user data."""
 
-    1. Build init_data
-    2. Print Ed25519 / HMAC data check strings and computed values
-    3. Call /v1/auth/init with X-InitData header
-    4. Read cookie __Host-auth_token and call /v1/user/me
-    5. Optionally wait for 60 seconds and test token invalidation
-    """
+    logger.info("\n" + "="*60)
+    logger.info(f"Authenticating {user_name}")
+    logger.info("="*60)
 
-    user_data = generator.generate_realistic_user_data()
     init_data = generator.generate_init_data(user_data=user_data)
 
-    params = generator.generate_realistic_user_data()
+    # Extract parameters for logging
+    params = user_data.copy()
     params["auth_date"] = str(int(time.time()))
 
     ed25519_pairs = []
     for key in sorted(params.keys()):
         value = params[key]
         if isinstance(value, (dict, list)):
-            value = json.dumps(value, separators=(
-                ",", ":"), ensure_ascii=False)
+            value = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
         ed25519_pairs.append((key, value))
     ed25519_dcs = "\n".join([f"{k}={v}" for k, v in ed25519_pairs])
 
-    pretty_panel(logger, "Ed25519 Data Check String", ed25519_dcs)
+    pretty_panel(logger, f"{user_name} - Ed25519 Data Check String", ed25519_dcs)
 
     signature = generator.sign_ed25519(
         f"{generator.bot_id}:WebAppData\n{ed25519_dcs}")
@@ -257,15 +273,14 @@ def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, n
     for key in sorted(hmac_params.keys()):
         value = hmac_params[key]
         if isinstance(value, (dict, list)):
-            value = json.dumps(value, separators=(
-                ",", ":"), ensure_ascii=False)
+            value = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
         hmac_pairs.append((key, value))
     hmac_dcs = "\n".join([f"{k}={v}" for k, v in hmac_pairs])
 
-    pretty_panel(logger, "HMAC Data Check String", hmac_dcs)
+    pretty_panel(logger, f"{user_name} - HMAC Data Check String", hmac_dcs)
 
     hash_value = generator.calculate_hash(hmac_dcs)
-    pretty_panel(logger, "Computed Values",
+    pretty_panel(logger, f"{user_name} - Computed Values",
                  f"Hash: {hash_value}\nSignature: {signature}")
 
     url_init = f"{base_url.rstrip('/')}/v1/auth/init"
@@ -277,30 +292,31 @@ def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, n
             url_init, headers={"X-InitData": init_data}, timeout=10)
     except Exception as exc:
         logger.exception("Request to %s failed: %s", url_init, exc)
-        raise
+        return None, None
 
     logger.info("/v1/auth/init -> status %d", response.status_code)
 
     # Print response headers (concise)
     headers_text = "\n".join(
         [f"{k}: {v}" for k, v in response.headers.items()])
-    pretty_panel(logger, "Response Headers", headers_text)
+    pretty_panel(logger, f"{user_name} - Response Headers", headers_text)
 
     cookies = response.cookies.get_dict()
     if not cookies:
         logger.warning("No cookies received from auth init response.")
-    else:
-        logger.info("Cookies: %s", json.dumps(cookies, ensure_ascii=False))
+        return None, None
+
+    logger.info("Cookies: %s", json.dumps(cookies, ensure_ascii=False))
 
     jwt_ = cookies.get("__Host-auth_token")
     if not jwt_:
         logger.error(
-            "Auth cookie '__Host-auth_token' not found. Aborting test sequence.")
-        return
+            "Auth cookie '__Host-auth_token' not found. Aborting authentication.")
+        return None, None
 
     logger.info("Received JWT (short): %s", shorten_jwt(jwt_))
 
-    # Call user/me
+    # Get user info to verify authentication
     url_me = f"{base_url.rstrip('/')}/v1/user/me"
     logger.info("Requesting user info from %s", url_me)
     try:
@@ -308,43 +324,144 @@ def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, n
             url_me, headers={"Authorization": f"Bearer {jwt_}"}, timeout=10)
     except Exception as exc:
         logger.exception("Request to %s failed: %s", url_me, exc)
-        raise
+        return None, None
 
     if response.status_code != 200:
         logger.error("/v1/user/me returned status %d", response.status_code)
         pretty_panel(logger, "User Endpoint Response", response.text)
-        return
+        return None, None
 
     try:
-        data = response.json().get("data")
+        user_info = response.json().get("data")
     except Exception:
         logger.exception("Failed to parse JSON from user/me response")
         pretty_panel(logger, "Raw Response", response.text)
+        return None, None
+
+    pretty_panel(logger, f"{user_name} - Authenticated User Data", pretty_json(user_info))
+
+    return jwt_, user_info
+
+
+def lookup_user(base_url: str, jwt_token: str, target_user_id: int, logger: logging.Logger,
+                lookup_user_name: str = "Lookup User") -> Optional[Dict[str, Any]]:
+    """Look up another user by their ID."""
+
+    logger.info("\n" + "="*60)
+    logger.info(f"User Lookup: {lookup_user_name} looking up user ID {target_user_id}")
+    logger.info("="*60)
+
+    url_lookup = f"{base_url.rstrip('/')}/v1/user/{target_user_id}"
+    logger.info("Requesting user info from %s", url_lookup)
+
+    try:
+        response = requests.get(
+            url_lookup,
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            timeout=10
+        )
+    except Exception as exc:
+        logger.exception("Request to %s failed: %s", url_lookup, exc)
+        return None
+
+    logger.info("/v1/user/%d -> status %d", target_user_id, response.status_code)
+
+    if response.status_code == 200:
+        try:
+            user_data = response.json().get("data")
+            pretty_panel(logger, f"Found User Data (ID: {target_user_id})", pretty_json(user_data))
+            return user_data
+        except Exception:
+            logger.exception("Failed to parse JSON from user lookup response")
+            pretty_panel(logger, "Raw Response", response.text)
+            return None
+    else:
+        logger.error("Failed to lookup user: HTTP %d", response.status_code)
+        pretty_panel(logger, "Lookup Error Response", response.text)
+        return None
+
+
+def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, no_wait: bool, logger: logging.Logger) -> None:
+    """Perform the enhanced test sequence with multiple users and user lookup.
+
+    1. Create and authenticate first user
+    2. Create and authenticate second user
+    3. Have second user look up first user using /v1/user/{user_id}
+    4. Optionally wait for 60 seconds and test token invalidation
+    """
+
+    # User 1: Original test user
+    user1_data = generator.generate_realistic_user_data(
+        user_id=1234567890,
+        username="test_user_1",
+        first_name="Alice",
+        last_name="Smith"
+    )
+
+    jwt1, user1_info = authenticate_user(generator, base_url, user1_data, logger, "User 1 (Alice)")
+    if not jwt1:
+        logger.error("Failed to authenticate User 1. Aborting test sequence.")
         return
 
-    pretty_panel(logger, "User Data", pretty_json(data))
+    user1_id = user1_info.get("telegram_id") if user1_info else 1234567890
 
-    # Run a few assertions (non-fatal, logged)
-    expected = {
-        "telegram_id": 1234567890,
-        "first_name": "Test",
-        "last_name": "User",
-        "username": "test_user",
-        "is_admin": False,
-    }
+    # User 2: New test user
+    user2_data = generator.generate_realistic_user_data(
+        user_id=9876543210,
+        username="test_user_2",
+        first_name="Bob",
+        last_name="Johnson"
+    )
 
-    mismatches = []
-    for k, v in expected.items():
-        actual_val = data.get(k)
-        if actual_val != v:
-            mismatches.append((k, v, actual_val))
+    jwt2, user2_info = authenticate_user(generator, base_url, user2_data, logger, "User 2 (Bob)")
+    if not jwt2:
+        logger.error("Failed to authenticate User 2. Aborting test sequence.")
+        return
 
-    if mismatches:
-        for k, expected_v, actual_v in mismatches:
-            logger.warning("Mismatch for %s: expected=%r actual=%r",
-                           k, expected_v, actual_v)
+    # User 2 looks up User 1
+    if user1_id:
+        looked_up_user = lookup_user(base_url, jwt2, user1_id, logger, "User 2 (Bob)")
+
+        if looked_up_user:
+            logger.info("✅ User lookup successful!")
+
+            # Verify looked up user data matches expected
+            expected_fields = {
+                "telegram_id": 1234567890,
+                "username": "test_user_1",
+                "first_name": "Alice",
+                "last_name": "Smith"
+            }
+
+            mismatches = []
+            for field, expected_value in expected_fields.items():
+                actual_value = looked_up_user.get(field)
+                if actual_value != expected_value:
+                    mismatches.append((field, expected_value, actual_value))
+
+            if mismatches:
+                logger.warning("⚠️  Some user data mismatches found:")
+                for field, expected, actual in mismatches:
+                    logger.warning("   %s: expected=%r, actual=%r", field, expected, actual)
+            else:
+                logger.info("✅ All user data matches expected values!")
+
+            # Display comparison table if rich is available
+            if RICH_AVAILABLE:
+                comparison_data = {
+                    "Looked up by": "User 2 (Bob)",
+                    "Target user": "User 1 (Alice)",
+                    "User ID": looked_up_user.get("telegram_id"),
+                    "Username": looked_up_user.get("username"),
+                    "First Name": looked_up_user.get("first_name"),
+                    "Last Name": looked_up_user.get("last_name"),
+                    "Lookup Status": "SUCCESS"
+                }
+                pretty_table("User Lookup Results", comparison_data)
+        else:
+            logger.error("❌ User lookup failed!")
     else:
-        logger.info("All expected user fields matched.")
+        logger.error("Cannot perform user lookup - User 1 ID not available")
 
     if no_wait:
         logger.info("Skipping token lifetime wait (--no-wait provided).")
@@ -353,20 +470,23 @@ def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, n
     logger.info("Waiting 60 seconds to test token expiration...")
     time.sleep(60)
 
-    # Try to re-use the same init data after token expiry - server should reject
+    # Test token expiration for User 1
+    url_init = f"{base_url.rstrip('/')}/v1/auth/init"
+    init_data_user1 = generator.generate_init_data(user_data=user1_data)
+
     try:
         response = requests.get(
-            url_init, headers={"X-InitData": init_data}, timeout=10)
+            url_init, headers={"X-InitData": init_data_user1}, timeout=10)
     except Exception as exc:
         logger.exception("Request to %s failed: %s", url_init, exc)
-        raise
+        return
 
-    logger.info("Second /v1/auth/init -> status %d", response.status_code)
+    logger.info("Second /v1/auth/init for User 1 -> status %d", response.status_code)
     if response.status_code == 401:
-        logger.info("Token correctly rejected after expiry period.")
+        logger.info("✅ Token correctly rejected after expiry period.")
     else:
         logger.warning(
-            "Unexpected status after expiration wait: %d", response.status_code)
+            "⚠️  Unexpected status after expiration wait: %d", response.status_code)
 
 
 # -----------------------------

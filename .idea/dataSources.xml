@@ -1,19 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="neondb@ep-little-thunder-adg3cjt3-pooler.c-2.us-east-1.aws.neon.tech" uuid="c9b7a17c-c187-4f90-b9e2-fdb5a18a30aa">
+    <data-source source="LOCAL" name="neondb@ep-blue-rain-agj92kv6.c-2.eu-central-1.aws.neon.tech" uuid="294d11ae-4522-405f-b1b1-e6ea34c978f8">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
-      <jdbc-url>jdbc:postgresql://ep-little-thunder-adg3cjt3-pooler.c-2.us-east-1.aws.neon.tech:5432/neondb</jdbc-url>
+      <jdbc-url>jdbc:postgresql://ep-blue-rain-agj92kv6.c-2.eu-central-1.aws.neon.tech:5432/neondb</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
-    </data-source>
-    <data-source source="LOCAL" name="0@redis-15115.c250.eu-central-1-1.ec2.redns.redis-cloud.com" uuid="9daa88b6-5bcf-4691-923c-6e814c7c5ca4">
-      <driver-ref>redis</driver-ref>
-      <synchronize>true</synchronize>
-      <jdbc-driver>jdbc.RedisDriver</jdbc-driver>
-      <jdbc-url>jdbc:redis://redis-15115.c250.eu-central-1-1.ec2.redns.redis-cloud.com:15115/0</jdbc-url>
-      <working-dir>$ProjectFileDir$</working-dir>
+      <driver-properties>
+        <property name="sslmode" value="require" />
+      </driver-properties>
     </data-source>
   </component>
 </project>
