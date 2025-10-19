@@ -4,16 +4,30 @@ use sea_orm::{entity::*, query::*};
 
 use anyhow::{anyhow, bail, Result};
 use entities::user;
-use crate::model::user::User;
+use crate::model::user::{PublicUser, User};
 
 #[allow(dead_code)]
 pub async fn get_user_by_id(
     user_id: uuid::Uuid,
     db: &Arc<DatabaseConnection>,
-) -> Result<Option<user::Model>, DbErr> {
-    user::Entity::find_by_id(user_id)
+    display_full: bool,
+) -> Result<Option<serde_json::Value>, DbErr> {
+    let user = user::Entity::find_by_id(user_id)
         .one(db.as_ref())
-        .await
+        .await?;
+
+    let result = match user {
+        Some(u) => {
+            if display_full {
+                Some(serde_json::to_value(u).unwrap())
+            } else {
+                Some(serde_json::to_value(PublicUser::from(u)).unwrap())
+            }
+        }
+        None => None,
+    };
+
+    Ok(result)
 }
 
 pub async fn get_user_by_telegram_id(
