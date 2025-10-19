@@ -32,7 +32,7 @@ pub async fn auth_handler_get(
     ).await?;
 
     let token = generate_auth_token(
-        &state, user_model.telegram_id
+        &state, user_model.id
     ).await?;
 
     let updated_jar = CookieService::add_auth_cookie(
@@ -56,7 +56,7 @@ async fn fetch_user_with_cache(
         cache,
         &cache_key,
         async {
-            crate::service::get_user_by_id(user_id, db)
+            crate::service::get_user_by_telegram_id(user_id, db)
                 .await
         }
     );
@@ -65,7 +65,7 @@ async fn fetch_user_with_cache(
 
 async fn generate_auth_token(
     state: &Arc<RwLock<AppState>>,
-    user_id: i64,
+    user_id: uuid::Uuid,
 ) -> Result<String, ApiError> {
     let state_guard = state.read().await;
     let jwt_service = JwtService::new(&state_guard.config.jwt_secret)?;

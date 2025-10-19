@@ -12,7 +12,7 @@ struct JwtPayload {
     pub sub: String,
 }
 
-pub struct JWTExtractor(pub i64);
+pub struct JWTExtractor(pub uuid::Uuid);
 
 impl<S> FromRequestParts<S> for JWTExtractor
 where
@@ -44,7 +44,7 @@ where
             .map_err(|_| ApiError::Unauthorized)?;
 
         let data: JwtPayload = serde_json::from_slice(&decoded_bytes)?;
-        let user_id = data.sub.parse::<i64>().map_err(|_| ApiError::BadRequest)?;
+        let user_id = data.sub.parse::<uuid::Uuid>().map_err(|_| ApiError::BadRequest)?;
         Ok(JWTExtractor(user_id))
     }
 }

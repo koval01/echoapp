@@ -14,7 +14,7 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use entities::user;
 use crate::model::user::User;
-use crate::service::{create_user, get_user_by_id};
+use crate::service::{create_user, get_user_by_telegram_id};
 use crate::util::cache::CacheBackend;
 
 pub async fn sync_user_middleware(
@@ -36,7 +36,7 @@ pub async fn sync_user_middleware(
         cache,
         &format!("user:{}", &user.id),
         async {
-            match get_user_by_id(user.id, &db).await {
+            match get_user_by_telegram_id(user.id, &db).await {
                 Ok(Some(user)) => Ok(Some(user)),
                 Ok(None) => {
                     match create_user(user, &db).await {

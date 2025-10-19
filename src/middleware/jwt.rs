@@ -17,7 +17,7 @@ use crate::service::JwtService;
 #[derive(Debug, Clone)]
 pub struct AuthUser {
     #[allow(dead_code)]
-    pub user_id: i64,
+    pub user_id: uuid::Uuid,
     #[allow(dead_code)]
     pub session_id: String,
 }

@@ -4,10 +4,11 @@ use serde_json::Value;
 use sha2::Sha256;
 use std::collections::BTreeMap;
 use time::{Duration, OffsetDateTime};
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct JwtClaims {
-    pub user_id: i64,
+    pub user_id: Uuid,
     #[allow(dead_code)]
     pub issued_at: i64,
     #[allow(dead_code)]
@@ -24,7 +25,7 @@ impl JwtService {
         Ok(Self { key })
     }
 
-    pub fn generate_token(&self, user_id: i64, expiration_seconds: i64) -> Result<String, Error> {
+    pub fn generate_token(&self, user_id: Uuid, expiration_seconds: i64) -> Result<String, Error> {
         let mut claims = BTreeMap::new();
 
         claims.insert("sub", Value::String(user_id.to_string()));
@@ -58,9 +59,10 @@ impl JwtService {
         }
 
         // Extract user_id
-        let user_id = claims.get("sub")
+        let user_id = claims
+            .get("sub")
             .and_then(|v| v.as_str())
-            .and_then(|s| s.parse::<i64>().ok())
+            .and_then(|s| Uuid::parse_str(s).ok())
             .ok_or(Error::InvalidSignature)?;
 
         let issued_at = claims.get("iat")

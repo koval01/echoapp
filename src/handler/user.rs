@@ -7,32 +7,40 @@ use entities::user;
 use crate::{
     error::ApiError,
     response::ApiResponse,
-    extractor::StrictI64,
+    extractor::StrictUuid,
     cache_fetch,
     service::get_user_by_id,
     util::cache::{CacheBackend, CacheWrapper},
 };
 use crate::extractor::JWTExtractor;
 
-async fn fetch_user(
-    user_id: i64,
+async fn fetch_user<T, F, Fut>(
+    user_id: T,
     db: Arc<DatabaseConnection>,
     redis_pool: CacheBackend,
     moka_cache: Cache<String, String>,
     redis_ttl: u64,
     moka_ttl: u64,
     cache_key_prefix: &str,
-) -> Result<impl IntoResponse, ApiError> {
+    fetch_fn: F,
+) -> Result<impl IntoResponse, ApiError>
+where
+    T: ToString + Send + Sync + 'static,
+    F: FnOnce(T, Arc<DatabaseConnection>) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<Option<user::Model>, ApiError>> + Send,
+{
     let cache = CacheWrapper::<user::Model>::new(redis_pool, moka_cache, redis_ttl, moka_ttl);
+
+    let cache_key = format!("{}{}", cache_key_prefix, user_id.to_string());
 
     let user = cache_fetch!(
         cache,
-        &format!("{}{}", cache_key_prefix, user_id),
+        &cache_key,
         async {
-            match get_user_by_id(user_id, &db).await {
-                Ok(Some(user)) => Ok(Some(user)),
-                Ok(None) => Err(ApiError::NotFound("User not found".to_string())),
-                Err(e) => Err(ApiError::from(e)),
+            let user = fetch_fn(user_id, db.clone()).await?;
+            match user {
+                Some(u) => Ok(Some(u)),
+                None => Err(ApiError::NotFound("User not found".into())),
             }
         }
     )?;
@@ -55,12 +63,15 @@ pub async fn user_handler_get(
         10,
         10,
         "user:",
+        |id, db| async move {
+            get_user_by_id(id, &db).await.map_err(ApiError::from)
+        },
     )
         .await
 }
 
 pub async fn user_by_id_handler_get(
-    StrictI64(user_id): StrictI64,
+    StrictUuid(user_id): StrictUuid,
     Extension(db): Extension<Arc<DatabaseConnection>>,
     Extension(redis_pool): Extension<CacheBackend>,
     Extension(moka_cache): Extension<Cache<String, String>>,
@@ -73,6 +84,9 @@ pub async fn user_by_id_handler_get(
         120,
         30,
         "user_uuid:",
+        |id, db| async move {
+            get_user_by_id(id, &db).await.map_err(ApiError::from)
+        },
     )
         .await
 }

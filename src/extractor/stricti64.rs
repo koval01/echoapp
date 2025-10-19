@@ -6,6 +6,7 @@ use axum::extract::Path;
 
 use crate::error::ApiError;
 
+#[allow(dead_code)]
 pub struct StrictI64(pub i64);
 
 impl<S> FromRequestParts<S> for StrictI64
