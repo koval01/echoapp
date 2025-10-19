@@ -60,8 +60,8 @@ pub async fn user_handler_get(
         db,
         redis_pool,
         moka_cache,
-        10,
-        10,
+        30,
+        15,
         "user:",
         |id, db| async move {
             get_user_by_id(id, &db, true).await.map_err(ApiError::from)
@@ -81,8 +81,8 @@ pub async fn user_by_id_handler_get(
         db,
         redis_pool,
         moka_cache,
+        900,
         120,
-        30,
         "user_uuid:",
         |id, db| async move {
             get_user_by_id(id, &db, false).await.map_err(ApiError::from)
