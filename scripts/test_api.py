@@ -9,6 +9,7 @@ Features:
 - Shortened JWT display for logs.
 - Command-line switches for skipping the 60s wait and for verbose output.
 - Multi-user testing with user lookup functionality.
+- Handle UUID-based user IDs and hidden telegram_id/admin fields.
 
 Usage:
     export BOT_TOKEN=123456:ABC
@@ -343,15 +344,15 @@ def authenticate_user(generator: TelegramInitDataGenerator, base_url: str, user_
     return jwt_, user_info
 
 
-def lookup_user(base_url: str, jwt_token: str, target_user_id: int, logger: logging.Logger,
+def lookup_user(base_url: str, jwt_token: str, target_user_uuid: str, logger: logging.Logger,
                 lookup_user_name: str = "Lookup User") -> Optional[Dict[str, Any]]:
-    """Look up another user by their ID."""
+    """Look up another user by their UUID."""
 
     logger.info("\n" + "="*60)
-    logger.info(f"User Lookup: {lookup_user_name} looking up user ID {target_user_id}")
+    logger.info(f"User Lookup: {lookup_user_name} looking up user UUID {target_user_uuid}")
     logger.info("="*60)
 
-    url_lookup = f"{base_url.rstrip('/')}/v1/user/{target_user_id}"
+    url_lookup = f"{base_url.rstrip('/')}/v1/user/{target_user_uuid}"
     logger.info("Requesting user info from %s", url_lookup)
 
     try:
@@ -364,12 +365,19 @@ def lookup_user(base_url: str, jwt_token: str, target_user_id: int, logger: logg
         logger.exception("Request to %s failed: %s", url_lookup, exc)
         return None
 
-    logger.info("/v1/user/%d -> status %d", target_user_id, response.status_code)
+    logger.info("/v1/user/%s -> status %d", target_user_uuid, response.status_code)
 
     if response.status_code == 200:
         try:
             user_data = response.json().get("data")
-            pretty_panel(logger, f"Found User Data (ID: {target_user_id})", pretty_json(user_data))
+            pretty_panel(logger, f"Found User Data (UUID: {target_user_uuid})", pretty_json(user_data))
+
+            # Check for hidden fields
+            if "telegram_id" in user_data:
+                logger.warning("⚠️  telegram_id field is visible (should be hidden in user lookup)")
+            if "is_admin" in user_data:
+                logger.warning("⚠️  is_admin field is visible (should be hidden in user lookup)")
+
             return user_data
         except Exception:
             logger.exception("Failed to parse JSON from user lookup response")
@@ -381,13 +389,73 @@ def lookup_user(base_url: str, jwt_token: str, target_user_id: int, logger: logg
         return None
 
 
+def compare_user_profiles(own_profile: Dict[str, Any], looked_up_profile: Dict[str, Any], logger: logging.Logger) -> None:
+    """Compare the user's own profile with what others see when looking them up."""
+
+    logger.info("\n" + "="*60)
+    logger.info("Profile Visibility Comparison")
+    logger.info("="*60)
+
+    # Fields that should be visible in both views
+    common_fields = ["id", "first_name", "last_name", "username", "language_code",
+                     "photo_url", "allows_write_to_pm", "created_at", "updated_at"]
+
+    # Fields that should only be visible in own profile
+    private_fields = ["telegram_id", "is_admin"]
+
+    comparison_data = {}
+
+    for field in common_fields:
+        own_value = own_profile.get(field)
+        looked_up_value = looked_up_profile.get(field)
+        status = "✅" if own_value == looked_up_value else "❌"
+        comparison_data[field] = {
+            "own_profile": own_value,
+            "looked_up": looked_up_value,
+            "status": status
+        }
+
+    for field in private_fields:
+        exists_in_own = field in own_profile
+        exists_in_looked_up = field in looked_up_profile
+        comparison_data[field] = {
+            "own_profile": "PRESENT" if exists_in_own else "MISSING",
+            "looked_up": "PRESENT" if exists_in_looked_up else "MISSING (good)",
+            "status": "✅" if exists_in_own and not exists_in_looked_up else "❌"
+        }
+
+    # Display comparison
+    if RICH_AVAILABLE:
+        table = Table(title="Profile Visibility Comparison", show_header=True, header_style="bold magenta")
+        table.add_column("Field", style="cyan")
+        table.add_column("Own Profile", style="green")
+        table.add_column("Looked Up", style="blue")
+        table.add_column("Status", style="yellow")
+
+        for field, data in comparison_data.items():
+            table.add_row(
+                field,
+                str(data["own_profile"]),
+                str(data["looked_up"]),
+                data["status"]
+            )
+
+        Console().print(table)
+    else:
+        logger.info("Field Visibility Comparison:")
+        for field, data in comparison_data.items():
+            logger.info("  %s: own=%s, looked_up=%s %s",
+                        field, data["own_profile"], data["looked_up"], data["status"])
+
+
 def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, no_wait: bool, logger: logging.Logger) -> None:
     """Perform the enhanced test sequence with multiple users and user lookup.
 
     1. Create and authenticate first user
     2. Create and authenticate second user
-    3. Have second user look up first user using /v1/user/{user_id}
-    4. Optionally wait for 60 seconds and test token invalidation
+    3. Have second user look up first user using /v1/user/{uuid}
+    4. Compare profile visibility
+    5. Optionally wait for 60 seconds and test token invalidation
     """
 
     # User 1: Original test user
@@ -399,11 +467,14 @@ def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, n
     )
 
     jwt1, user1_info = authenticate_user(generator, base_url, user1_data, logger, "User 1 (Alice)")
-    if not jwt1:
+    if not jwt1 or not user1_info:
         logger.error("Failed to authenticate User 1. Aborting test sequence.")
         return
 
-    user1_id = user1_info.get("telegram_id") if user1_info else 1234567890
+    user1_uuid = user1_info.get("id")
+    if not user1_uuid:
+        logger.error("User 1 UUID not found in response. Aborting test sequence.")
+        return
 
     # User 2: New test user
     user2_data = generator.generate_realistic_user_data(
@@ -418,50 +489,48 @@ def perform_test_sequence(generator: TelegramInitDataGenerator, base_url: str, n
         logger.error("Failed to authenticate User 2. Aborting test sequence.")
         return
 
-    # User 2 looks up User 1
-    if user1_id:
-        looked_up_user = lookup_user(base_url, jwt2, user1_id, logger, "User 2 (Bob)")
+    # User 2 looks up User 1 by UUID
+    looked_up_user = lookup_user(base_url, jwt2, user1_uuid, logger, "User 2 (Bob)")
 
-        if looked_up_user:
-            logger.info("✅ User lookup successful!")
+    if looked_up_user:
+        logger.info("✅ User lookup successful!")
 
-            # Verify looked up user data matches expected
-            expected_fields = {
-                "telegram_id": 1234567890,
-                "username": "test_user_1",
-                "first_name": "Alice",
-                "last_name": "Smith"
-            }
+        # Compare what User 1 sees vs what User 2 sees
+        compare_user_profiles(user1_info, looked_up_user, logger)
 
-            mismatches = []
-            for field, expected_value in expected_fields.items():
-                actual_value = looked_up_user.get(field)
-                if actual_value != expected_value:
-                    mismatches.append((field, expected_value, actual_value))
+        # Verify looked up user data matches expected public fields
+        expected_fields = {
+            "first_name": "Alice",
+            "last_name": "Smith",
+            "username": "test_user_1"
+        }
 
-            if mismatches:
-                logger.warning("⚠️  Some user data mismatches found:")
-                for field, expected, actual in mismatches:
-                    logger.warning("   %s: expected=%r, actual=%r", field, expected, actual)
-            else:
-                logger.info("✅ All user data matches expected values!")
+        mismatches = []
+        for field, expected_value in expected_fields.items():
+            actual_value = looked_up_user.get(field)
+            if actual_value != expected_value:
+                mismatches.append((field, expected_value, actual_value))
 
-            # Display comparison table if rich is available
-            if RICH_AVAILABLE:
-                comparison_data = {
-                    "Looked up by": "User 2 (Bob)",
-                    "Target user": "User 1 (Alice)",
-                    "User ID": looked_up_user.get("telegram_id"),
-                    "Username": looked_up_user.get("username"),
-                    "First Name": looked_up_user.get("first_name"),
-                    "Last Name": looked_up_user.get("last_name"),
-                    "Lookup Status": "SUCCESS"
-                }
-                pretty_table("User Lookup Results", comparison_data)
+        if mismatches:
+            logger.warning("⚠️  Some user data mismatches found:")
+            for field, expected, actual in mismatches:
+                logger.warning("   %s: expected=%r, actual=%r", field, expected, actual)
         else:
-            logger.error("❌ User lookup failed!")
+            logger.info("✅ All public user data matches expected values!")
+
+        # Verify private fields are hidden
+        if "telegram_id" not in looked_up_user:
+            logger.info("✅ telegram_id correctly hidden in user lookup")
+        else:
+            logger.warning("⚠️  telegram_id should be hidden but is visible")
+
+        if "is_admin" not in looked_up_user:
+            logger.info("✅ is_admin correctly hidden in user lookup")
+        else:
+            logger.warning("⚠️  is_admin should be hidden but is visible")
+
     else:
-        logger.error("Cannot perform user lookup - User 1 ID not available")
+        logger.error("❌ User lookup failed!")
 
     if no_wait:
         logger.info("Skipping token lifetime wait (--no-wait provided).")

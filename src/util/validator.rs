@@ -53,7 +53,7 @@ pub fn validate_init_data(init_data: &str, bot_token: &str, test_pub_key: &str) 
         .map_err(|_| "System time is before UNIX epoch")?
         .as_secs();
 
-    if current_time > auth_date + 50 {
+    if current_time > auth_date + 30 {
         return Err("auth_date expired");
     }
 
