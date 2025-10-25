@@ -46,7 +46,7 @@ use migration::{Migrator, MigratorTrait};
 use crate::{
     config::Config,
     util::cache::CacheBackend,
-    middleware::{request_id_middleware, process_time_middleware}
+    middleware::{request_id_middleware, process_time_middleware, instance_name_middleware}
 };
 
 pub struct AppState {
@@ -161,7 +161,8 @@ async fn main() {
 
     let middleware_stack = middleware_stack
         .layer(axum::middleware::from_fn(process_time_middleware))
-        .layer(axum::middleware::from_fn(request_id_middleware));
+        .layer(axum::middleware::from_fn(request_id_middleware))
+        .layer(axum::middleware::from_fn(instance_name_middleware));
 
     let _bind = config.server_bind_addr.clone();
     let app_state = Arc::new(RwLock::new(AppState {

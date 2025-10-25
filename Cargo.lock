@@ -1152,6 +1152,7 @@ dependencies = [
  "entities",
  "hex",
  "hmac",
+ "hostname",
  "jwt",
  "migration",
  "moka",
