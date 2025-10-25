@@ -2,7 +2,7 @@
 <module type="EMPTY_MODULE" version="4">
   <component name="FacetManager">
     <facet type="Python" name="Python facet">
-      <configuration sdkName="Python 3.12 (duolang)" />
+      <configuration sdkName="Python 3.14 (echoapp)" />
     </facet>
   </component>
   <component name="NewModuleRootManager">
@@ -18,6 +18,6 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Python 3.12 (duolang) interpreter library" level="application" />
+    <orderEntry type="library" name="Python 3.14 (echoapp) interpreter library" level="application" />
   </component>
 </module>
