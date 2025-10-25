@@ -10,31 +10,19 @@ use entities::user;
 use entities::user::Model;
 use crate::cache_fetch;
 use crate::error::ApiError;
-use crate::model::user::{PublicUser, User};
+use crate::model::user::User;
 use crate::util::cache::{CacheBackend, CacheWrapper};
 
 #[allow(dead_code)]
 pub async fn get_user_by_id(
     user_id: Uuid,
     db: &Arc<DatabaseConnection>,
-    display_full: bool,
-) -> Result<Option<serde_json::Value>, DbErr> {
+) -> Result<Option<Model>, DbErr> {
     let user = user::Entity::find_by_id(user_id)
         .one(db.as_ref())
         .await?;
 
-    let result = match user {
-        Some(u) => {
-            if display_full {
-                Some(serde_json::to_value(u).unwrap())
-            } else {
-                Some(serde_json::to_value(PublicUser::from(u)).unwrap())
-            }
-        }
-        None => None,
-    };
-
-    Ok(result)
+    Ok(user)
 }
 
 pub async fn get_user_by_telegram_id(
