@@ -20,6 +20,8 @@ pub struct Model {
     pub allows_write_to_pm: bool,
     #[sea_orm(default_value = "false")]
     pub is_admin: bool,
+    #[sea_orm(default_value = "false")]
+    pub is_banned: bool,
     pub photo_url: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
@@ -35,6 +37,7 @@ impl ActiveModelBehavior for ActiveModel {
         active_model.allows_write_to_pm = Set(true);
         active_model.language_code = Set("en".to_owned());
         active_model.is_admin = Set(false);
+        active_model.is_banned = Set(false);
         active_model
     }
 }

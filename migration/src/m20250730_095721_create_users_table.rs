@@ -50,6 +50,12 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(false),
                     )
+                    .col(
+                        ColumnDef::new(User::IsBanned)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
                     .col(ColumnDef::new(User::PhotoUrl).string())
                     .col(
                         ColumnDef::new(User::CreatedAt)
@@ -129,6 +135,7 @@ enum User {
     LanguageCode,
     AllowsWriteToPm,
     IsAdmin,
+    IsBanned,
     PhotoUrl,
     CreatedAt,
     UpdatedAt,
