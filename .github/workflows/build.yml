@@ -1,0 +1,195 @@
+name: Build and Push Docker Image
+
+env:
+  CARGO_TERM_COLOR: always
+  DOCKER_IMAGE: koval01/echoapp
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y pkg-config libssl-dev build-essential curl
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          prefix-key: x86_64-unknown-linux-gnu
+
+      - name: Build Release Binary
+        run: cargo build --release
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "echoapp"
+          path: target/release/echoapp
+
+      - name: Get short SHA and current date
+        id: vars
+        shell: bash
+        run: |
+          echo "short_sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+          echo "build_date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
+      - name: Prepare binaries for Docker
+        run: |
+          mkdir -p docker-files
+          cp target/release/echoapp docker-files/
+
+      - name: Build Docker image for testing
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          tags: ${{ env.DOCKER_IMAGE }}:test
+
+      - name: Install python dependencies
+        run: |
+          python3 --version
+          pip3 install -U pip requests cryptography rich --break-system-packages
+
+      - name: Test Docker image with development services
+        env:
+          DATABASE_URL: ""  # Empty to trigger development mode
+          REDIS_URL: ""     # Empty to trigger development mode
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          SENTRY_DSN: ""    # Add this to prevent the warning
+          TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
+          TEST_PUBLIC_KEY: ${{ secrets.TEST_PUBLIC_KEY }}
+        run: |
+          # Debug: Show compose file structure
+          echo "Checking docker-compose file..."
+          docker-compose config
+          
+          # Start all services (app + db + redis)
+          echo "Starting development services..."
+          docker-compose --profile development up -d
+          
+          # Wait for services to be ready with health checks
+          echo "Waiting for services to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/healthz > /dev/null; then
+              echo "Service is ready!"
+              break
+            fi
+            echo "Waiting for service to be ready... ($i/30)"
+            sleep 5
+          done
+          
+          # Test health endpoint
+          echo "Testing health endpoint..."
+          curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
+          
+          # Test script
+          python3 scripts/test_api.py --verbose --base-url "http://localhost:8000"
+          
+          # Cleanup - stop all services including those with development profile
+          echo "Cleaning up..."
+          docker-compose --profile development down
+
+      - name: Check if external services are available
+        id: check_external_services
+        run: |
+          if [ -n "${{ secrets.REDIS_URL }}" ] && [ -n "${{ secrets.DATABASE_URL }}" ]; then
+            echo "external_services_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "external_services_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Test Docker image with external services
+        if: steps.check_external_services.outputs.external_services_available == 'true'
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          SENTRY_DSN: ""
+          TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
+          TEST_PUBLIC_KEY: ${{ secrets.TEST_PUBLIC_KEY }}
+        run: |
+          # Start only the app service (using external db/redis)
+          echo "Starting app with external services..."
+          docker-compose up app -d
+          
+          # Wait for app to be ready
+          echo "Waiting for app to be ready..."
+          for i in {1..20}; do
+            if curl -s http://localhost:8000/healthz > /dev/null; then
+              echo "App is ready!"
+              break
+            fi
+            echo "Waiting for app to be ready... ($i/20)"
+            sleep 5
+          done
+          
+          # Test health endpoint
+          echo "Testing health endpoint..."
+          curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
+          
+          # Test script
+          python3 scripts/test_api.py --verbose --base-url "http://localhost:8000"
+          
+          # Cleanup
+          echo "Cleaning up..."
+          docker-compose down
+
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: koval01
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/echoapp
+          name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
+          tag_name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
