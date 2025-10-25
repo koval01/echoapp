@@ -99,7 +99,7 @@ async fn main() {
         .compress_when(predicate);
 
     let moka_cache: Cache<String, String> = Cache::builder()
-        .time_to_live(Duration::from_secs(10))
+        .time_to_live(Duration::from_secs(60))
         .max_capacity(16_000)
         .build();
 

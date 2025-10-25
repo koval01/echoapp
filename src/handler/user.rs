@@ -62,7 +62,7 @@ where
         redis_pool,
         moka_cache,
         60,
-        30,
+        60,
         "user_uuid:",
         |id, db| async move {
             get_user_by_id(id, &db).await.map_err(ApiError::from)
