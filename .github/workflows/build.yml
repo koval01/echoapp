@@ -96,11 +96,11 @@ jobs:
           # Debug: Show compose file structure
           echo "Checking docker-compose file..."
           docker-compose config
-          
+
           # Start all services (app + db + redis)
           echo "Starting development services..."
           docker-compose --profile development up -d
-          
+
           # Wait for services to be ready with health checks
           echo "Waiting for services to be ready..."
           for i in {1..30}; do
@@ -111,14 +111,14 @@ jobs:
             echo "Waiting for service to be ready... ($i/30)"
             sleep 5
           done
-          
+
           # Test health endpoint
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
-          
+
           # Test script
           python3 scripts/test_api.py --verbose --base-url "http://localhost:8000"
-          
+
           # Cleanup - stop all services including those with development profile
           echo "Cleaning up..."
           docker-compose --profile development down
@@ -145,7 +145,7 @@ jobs:
           # Start only the app service (using external db/redis)
           echo "Starting app with external services..."
           docker-compose up app -d
-          
+
           # Wait for app to be ready
           echo "Waiting for app to be ready..."
           for i in {1..20}; do
@@ -156,14 +156,14 @@ jobs:
             echo "Waiting for app to be ready... ($i/20)"
             sleep 5
           done
-          
+
           # Test health endpoint
           echo "Testing health endpoint..."
           curl -f http://localhost:8000/healthz || (echo "Health check failed" && exit 1)
-          
+
           # Test script
           python3 scripts/test_api.py --verbose --base-url "http://localhost:8000"
-          
+
           # Cleanup
           echo "Cleaning up..."
           docker-compose down
@@ -193,3 +193,34 @@ jobs:
           tag_name: ${{ steps.vars.outputs.build_date }}-${{ steps.vars.outputs.short_sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to servers
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # Save SSH private key to file
+          echo "${{ secrets.SSH_KEY }}" > private_key
+          chmod 600 private_key
+          
+          # Split servers IPs into array
+          SERVERS=(${{ secrets.SERVERS_IPS }})
+          
+          DEPLOY_COMMAND="docker pull koval01/echoapp:latest && docker stop echoapp || true && docker rm echoapp || true && docker run -d --name echoapp --env-file env.echoapp -p 8000:3000 koval01/echoapp:latest"
+          
+          HEALTH_CHECK="sleep 10 && curl -f http://localhost:8000/healthz && echo 'Health check passed'"
+          
+          # Loop through each server and execute command
+          for SERVER_IP in "${SERVERS[@]}"; do
+            echo "Deploying to server: $SERVER_IP"
+          
+            ssh -o StrictHostKeyChecking=no -i private_key ubuntu@$SERVER_IP "$DEPLOY_COMMAND" || echo "Deployment failed on $SERVER_IP"
+          
+            echo "Health checking server: $SERVER_IP"
+            ssh -o StrictHostKeyChecking=no -i private_key ubuntu@$SERVER_IP "$HEALTH_CHECK" || echo "Health check failed on $SERVER_IP"
+          
+            ssh -o StrictHostKeyChecking=no -i private_key ubuntu@$SERVER_IP "docker ps" || echo "Failed to check containers on $SERVER_IP"
+          done
+          
+          curl -svo /dev/null 'https://echoapp.ignorelist.com/healthz'
+          
+          # Cleanup private key
+          rm -f private_key
