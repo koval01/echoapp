@@ -60,7 +60,7 @@ pub async fn user_handler_get(
         db,
         redis_pool,
         moka_cache,
-        30,
+        60,
         30,
         "user:",
         |id, db| async move {
@@ -81,7 +81,7 @@ pub async fn user_by_id_handler_get(
         db,
         redis_pool,
         moka_cache,
-        30,
+        60,
         30,
         "user_uuid:",
         |id, db| async move {
