@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:3000"
+      - "3000:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgres://user:password@db:5432/echoapp}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
@@ -14,7 +14,7 @@ services:
       - SESSION_MAXAGE=7200
       - APP_ENV=${APP_ENV:-development}
       - APP_NAME=echoapp
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8000}
       - BOT_TOKEN=${BOT_TOKEN}
       - SENTRY_DSN=${SENTRY_DSN}
       - TEST_PUBLIC_KEY=${TEST_PUBLIC_KEY}
