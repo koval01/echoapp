@@ -14,7 +14,7 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use entities::user;
 use crate::model::user::User;
-use crate::service::{create_user, get_user_by_telegram_id};
+use crate::service::{create_user, get_user_by_telegram_id, needs_update, update_user};
 use crate::util::cache::CacheBackend;
 
 pub async fn sync_user_middleware(
@@ -37,7 +37,16 @@ pub async fn sync_user_middleware(
         &format!("user:{}", &user.id),
         async {
             match get_user_by_telegram_id(user.id, &db).await {
-                Ok(Some(user)) => Ok(Some(user)),
+                Ok(Some(db_user)) => {
+                    if needs_update(&user, &db_user) {
+                        match update_user(&user, &db_user, &db).await {
+                            Ok(updated_user) => Ok(Some(updated_user)),
+                            Err(e) => Err(ApiError::from(e)),
+                        }
+                    } else {
+                        Ok(Some(db_user))
+                    }
+                },
                 Ok(None) => {
                     match create_user(user, &db).await {
                         Ok(user) => Ok(Some(user)),
@@ -50,15 +59,4 @@ pub async fn sync_user_middleware(
     )?;
 
     Ok(next.run(request).await)
-}
-
-#[allow(dead_code)]
-#[inline(always)]
-fn needs_update(init_user: &User, db_user: &user::Model) -> bool {
-    init_user.first_name != db_user.first_name
-        || init_user.last_name != db_user.last_name
-        || init_user.username != db_user.username
-        || init_user.language_code != db_user.language_code
-        || init_user.allows_write_to_pm != db_user.allows_write_to_pm
-        || init_user.photo_url != db_user.photo_url
 }

@@ -1,8 +1,9 @@
 use std::sync::Arc;
-use sea_orm::{EntityTrait, DatabaseConnection, ActiveModelTrait, DbErr};
+use sea_orm::{EntityTrait, DatabaseConnection, ActiveModelTrait, DbErr, ActiveValue::Set};
 use sea_orm::{entity::*, query::*};
 
 use anyhow::{anyhow, bail, Result};
+use sea_orm::sqlx::types::chrono::Utc;
 use entities::user;
 use crate::model::user::{PublicUser, User};
 
@@ -67,4 +68,65 @@ pub async fn create_user(
         .map_err(|e| anyhow!("database error: {}", e))?;
 
     Ok(user)
+}
+
+pub async fn update_user(
+    init_user: &User,
+    db_user: &user::Model,
+    db: &Arc<DatabaseConnection>,
+) -> Result<user::Model> {
+    let mut user_to_update: user::ActiveModel = db_user.clone().into();
+
+    let mut has_changes = false;
+
+    // Update only the fields that have changed
+    if init_user.first_name != db_user.first_name {
+        user_to_update.first_name = Set(init_user.first_name.clone());
+        has_changes = true;
+    }
+    if init_user.last_name != db_user.last_name {
+        user_to_update.last_name = Set(init_user.last_name.clone());
+        has_changes = true;
+    }
+    if init_user.username != db_user.username {
+        user_to_update.username = Set(init_user.username.clone());
+        has_changes = true;
+    }
+    if init_user.language_code != db_user.language_code {
+        user_to_update.language_code = Set(init_user.language_code.clone());
+        has_changes = true;
+    }
+    if init_user.allows_write_to_pm != db_user.allows_write_to_pm {
+        user_to_update.allows_write_to_pm = Set(init_user.allows_write_to_pm);
+        has_changes = true;
+    }
+    if init_user.photo_url != db_user.photo_url {
+        user_to_update.photo_url = Set(init_user.photo_url.clone());
+        has_changes = true;
+    }
+
+    // Only update if there are actual changes
+    if has_changes {
+        // Update the updated_at timestamp with the correct SeaORM type
+        user_to_update.updated_at = Set(sea_orm::prelude::DateTimeWithTimeZone::from(Utc::now()));
+
+        let updated_user = user_to_update.update(db.as_ref())
+            .await
+            .map_err(|e| anyhow!("database error: {}", e))?;
+
+        Ok(updated_user)
+    } else {
+        // No changes needed, return the original user
+        Ok(db_user.clone())
+    }
+}
+
+// Make this public so it can be used by both modules
+pub fn needs_update(init_user: &User, db_user: &user::Model) -> bool {
+    init_user.first_name != db_user.first_name
+        || init_user.last_name != db_user.last_name
+        || init_user.username != db_user.username
+        || init_user.language_code != db_user.language_code
+        || init_user.allows_write_to_pm != db_user.allows_write_to_pm
+        || init_user.photo_url != db_user.photo_url
 }
