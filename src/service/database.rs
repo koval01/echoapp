@@ -42,7 +42,7 @@ pub async fn fetch_user_with_cache(
     moka_cache: Cache<String, String>,
 ) -> Result<Model, ApiError> {
     let cache = CacheWrapper::<Model>::new(redis_pool, moka_cache, 60, 10);
-    let cache_key = format!("user_uuid_full:{}", user_id);
+    let cache_key = format!("user_uuid:{}", user_id);
 
     let user: Model = cache_fetch!(
         cache,
