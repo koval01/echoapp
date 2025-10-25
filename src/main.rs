@@ -22,6 +22,7 @@ use moka::future::Cache;
 use reqwest::ClientBuilder;
 
 use axum::{http::{header::{ACCEPT, CONTENT_TYPE}, HeaderName, HeaderValue, Method}, extract::Extension};
+use sea_orm::DatabaseConnection;
 use route::create_router;
 
 use tower::ServiceBuilder;
@@ -50,6 +51,7 @@ use crate::{
 
 pub struct AppState {
     pub config: Config,
+    pub shared_db: Arc<DatabaseConnection>
 }
 
 #[tokio::main]
@@ -162,6 +164,7 @@ async fn main() {
     let _bind = config.server_bind_addr.clone();
     let app_state = Arc::new(RwLock::new(AppState {
         config,
+        shared_db: shared_db.clone(),
     }));
 
     let app = create_router(app_state)
