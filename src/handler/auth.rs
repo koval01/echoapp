@@ -3,6 +3,7 @@ use axum::extract::State;
 use axum_extra::extract::cookie::CookieJar;
 
 use std::sync::Arc;
+use axum::http::StatusCode;
 use tokio::sync::RwLock;
 
 use crate::{
@@ -32,7 +33,7 @@ pub async fn auth_handler_get(
     ).await?;
 
     if user_model.is_banned {
-        return Err(ApiError::Forbidden)
+        return Err(ApiError::Custom(StatusCode::FORBIDDEN, String::from("user is banned")));
     }
 
     let token = generate_auth_token(
