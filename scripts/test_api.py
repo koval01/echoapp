@@ -397,7 +397,7 @@ def compare_user_profiles(own_profile: Dict[str, Any], looked_up_profile: Dict[s
     logger.info("="*60)
 
     # Fields that should be visible in both views
-    common_fields = ["id", "first_name", "last_name", "username", "language_code",
+    common_fields = ["id", "first_name", "last_name", "username", "language_code", "is_banned",
                      "photo_url", "allows_write_to_pm", "created_at", "updated_at"]
 
     # Fields that should only be visible in own profile
