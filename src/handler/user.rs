@@ -62,7 +62,7 @@ pub async fn user_handler_get(
         moka_cache,
         60,
         30,
-        "user:",
+        "user_uuid:",
         |id, db| async move {
             get_user_by_id(id, &db, true).await.map_err(ApiError::from)
         },
