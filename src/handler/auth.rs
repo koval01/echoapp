@@ -31,6 +31,10 @@ pub async fn auth_handler_get(
         user.id, &db, redis_pool, moka_cache
     ).await?;
 
+    if user_model.is_banned {
+        return Err(ApiError::Forbidden)
+    }
+
     let token = generate_auth_token(
         &state, user_model.id
     ).await?;
