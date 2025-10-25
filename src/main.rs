@@ -51,7 +51,9 @@ use crate::{
 
 pub struct AppState {
     pub config: Config,
-    pub shared_db: Arc<DatabaseConnection>
+    pub shared_db: Arc<DatabaseConnection>,
+    pub redis_backend: CacheBackend,
+    pub moka_cache: Cache<String, String>
 }
 
 #[tokio::main]
@@ -165,6 +167,8 @@ async fn main() {
     let app_state = Arc::new(RwLock::new(AppState {
         config,
         shared_db: shared_db.clone(),
+        redis_backend: redis_backend.clone(),
+        moka_cache: moka_cache.clone()
     }));
 
     let app = create_router(app_state)

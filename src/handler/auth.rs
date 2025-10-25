@@ -40,8 +40,9 @@ pub async fn auth_handler_get(
         &state, user_model.id
     ).await?;
 
+    let state_guard = state.read().await;
     let updated_jar = CookieService::add_auth_cookie(
-        jar, &token, 8
+        jar, &token, (state_guard.config.session_maxage + 3600 - 1) / 3600
     );
 
     let response = ApiResponse::success(user_model);
@@ -54,7 +55,7 @@ async fn fetch_user_with_cache(
     redis_pool: CacheBackend,
     moka_cache: Cache<String, String>,
 ) -> Result<Model, ApiError> {
-    let cache = CacheWrapper::<Model>::new(redis_pool, moka_cache, 10, 10);
+    let cache = CacheWrapper::<Model>::new(redis_pool, moka_cache, 60, 10);
     let cache_key = format!("user:{}", user_id);
 
     let user_option = cache_fetch!(

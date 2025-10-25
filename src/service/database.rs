@@ -3,13 +3,19 @@ use sea_orm::{EntityTrait, DatabaseConnection, ActiveModelTrait, DbErr, ActiveVa
 use sea_orm::{entity::*, query::*};
 
 use anyhow::{anyhow, bail, Result};
+use moka::future::Cache;
 use sea_orm::sqlx::types::chrono::Utc;
+use uuid::Uuid;
 use entities::user;
+use entities::user::Model;
+use crate::cache_fetch;
+use crate::error::ApiError;
 use crate::model::user::{PublicUser, User};
+use crate::util::cache::{CacheBackend, CacheWrapper};
 
 #[allow(dead_code)]
 pub async fn get_user_by_id(
-    user_id: uuid::Uuid,
+    user_id: Uuid,
     db: &Arc<DatabaseConnection>,
     display_full: bool,
 ) -> Result<Option<serde_json::Value>, DbErr> {
@@ -34,17 +40,40 @@ pub async fn get_user_by_id(
 pub async fn get_user_by_telegram_id(
     telegram_id: i64,
     db: &Arc<DatabaseConnection>,
-) -> Result<Option<user::Model>, DbErr> {
+) -> Result<Option<Model>, DbErr> {
     user::Entity::find()
         .filter(user::Column::TelegramId.eq(telegram_id))
         .one(db.as_ref())
         .await
 }
 
+pub async fn fetch_user_with_cache(
+    user_id: Uuid,
+    db: &Arc<DatabaseConnection>,
+    redis_pool: CacheBackend,
+    moka_cache: Cache<String, String>,
+) -> Result<Model, ApiError> {
+    let cache = CacheWrapper::<Model>::new(redis_pool, moka_cache, 60, 10);
+    let cache_key = format!("user_uuid_full:{}", user_id);
+
+    let user: Model = cache_fetch!(
+        cache,
+        &cache_key,
+        async {
+            user::Entity::find_by_id(user_id)
+                .one(db.as_ref())
+                .await
+                .map_err(ApiError::from)
+        }
+    )?;
+
+    Ok(user)
+}
+
 pub async fn create_user(
     user: User,
     db: &Arc<DatabaseConnection>,
-) -> Result<user::Model> {
+) -> Result<Model> {
     let user_exists = get_user_by_telegram_id(user.id, db)
         .await?;
 
@@ -72,9 +101,9 @@ pub async fn create_user(
 
 pub async fn update_user(
     init_user: &User,
-    db_user: &user::Model,
+    db_user: &Model,
     db: &Arc<DatabaseConnection>,
-) -> Result<user::Model> {
+) -> Result<Model> {
     let mut user_to_update: user::ActiveModel = db_user.clone().into();
 
     let mut has_changes = false;
@@ -122,7 +151,7 @@ pub async fn update_user(
 }
 
 // Make this public so it can be used by both modules
-pub fn needs_update(init_user: &User, db_user: &user::Model) -> bool {
+pub fn needs_update(init_user: &User, db_user: &Model) -> bool {
     init_user.first_name != db_user.first_name
         || init_user.last_name != db_user.last_name
         || init_user.username != db_user.username

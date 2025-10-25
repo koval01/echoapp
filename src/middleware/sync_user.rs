@@ -28,7 +28,7 @@ pub async fn sync_user_middleware(
     let cache = CacheWrapper::<user::Model>::new(
         redis_pool,
         moka_cache,
-        10,
+        60,
         10
     );
 

@@ -12,7 +12,7 @@ use rand::random;
 use tokio::sync::RwLock;
 use crate::AppState;
 use crate::error::ApiError;
-use crate::service::JwtService;
+use crate::service::{fetch_user_with_cache, JwtService};
 
 #[derive(Debug, Clone)]
 pub struct AuthUser {
@@ -41,6 +41,14 @@ pub async fn validate_jwt_middleware(
 
     match jwt_service.validate_token(&token) {
         Ok(claims) => {
+            let user_model = fetch_user_with_cache(
+                claims.user_id, &state.shared_db, state.redis_backend.clone(), state.moka_cache.clone()
+            ).await?;
+
+            if user_model.is_banned {
+                return Err(ApiError::Custom(StatusCode::FORBIDDEN, "user is banned".into()));
+            }
+
             let auth_user = AuthUser {
                 user_id: claims.user_id,
                 session_id: generate_session_id(),
