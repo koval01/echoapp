@@ -4,15 +4,21 @@ use bb8_redis::{
     redis::{RedisError, AsyncCommands},
 };
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{to_string, from_str};
 
 use moka::future::Cache;
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::future::Future;
 use axum::http::StatusCode;
 use crate::error::ApiError;
+
+#[derive(Clone, Serialize, Deserialize)]
+struct CachedValue {
+    value: String,
+    expires_at: u64,
+}
 
 #[derive(Debug)]
 pub enum CacheError {
@@ -112,15 +118,44 @@ where
     }
 
     async fn get_from_caches(&self, key: &str) -> Result<Option<String>, CacheError> {
-        // Check Moka cache first
-        if let Some(cached_value) = self.moka_cache.get(key).await {
-            return Ok(Some(cached_value));
+        if let Some(cached_raw) = self.moka_cache.get(key).await {
+            match from_str::<CachedValue>(&cached_raw) {
+                Ok(cached) => {
+                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+                    if cached.expires_at > now {
+                        return Ok(Some(cached.value));
+                    } else {
+                        self.moka_cache.invalidate(key).await;
+                    }
+                }
+                Err(_) => {
+                    self.moka_cache.invalidate(key).await;
+                }
+            }
         }
 
-        // Check Redis cache if enabled
         if let CacheBackend::Redis(pool) = &self.backend {
             let mut conn = pool.get().await?;
             if let Ok(Some(cached_data)) = conn.get::<_, Option<String>>(key).await {
+                let ttl_secs = match conn.ttl::<&str, i64>(key).await {
+                    Ok(secs) if secs > 0 => secs as u64,
+                    _ => self.cache_ttl.as_secs(),
+                };
+
+                let expires_at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    + Duration::from_secs(ttl_secs.max(2));
+
+                let cached_value = CachedValue {
+                    value: cached_data.clone(),
+                    expires_at: expires_at.as_secs(),
+                };
+
+                if let Ok(serialized) = to_string(&cached_value) {
+                    self.moka_cache.insert(key.to_string(), serialized).await;
+                }
+
                 return Ok(Some(cached_data));
             }
         }
