@@ -48,7 +48,7 @@ use migration::{Migrator, MigratorTrait};
 use crate::{
     config::Config,
     util::cache::CacheBackend,
-    middleware::{request_id_middleware, process_time_middleware, instance_name_middleware}
+    middleware::{request_id_middleware, process_time_middleware}
 };
 
 pub struct AppState {
@@ -66,7 +66,7 @@ async fn main() {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
-                .parse("") // echoapp=info,tower_http=info
+                .parse("sqlx::query=warn,tower_http=info,echoapp=info")
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
@@ -163,8 +163,7 @@ async fn main() {
 
     let middleware_stack = middleware_stack
         .layer(axum::middleware::from_fn(process_time_middleware))
-        .layer(axum::middleware::from_fn(request_id_middleware))
-        .layer(axum::middleware::from_fn(instance_name_middleware));
+        .layer(axum::middleware::from_fn(request_id_middleware));
 
     let _bind = config.server_bind_addr.clone();
     let app_state = Arc::new(RwLock::new(AppState {
