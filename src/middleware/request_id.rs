@@ -16,6 +16,7 @@ pub async fn request_id_middleware(
     let request_id = Uuid::new_v4().to_string();
     let method = request.method().clone();
     let uri = request.uri().clone();
+    let path = uri.path().to_string();
 
     let instance = get()
         .ok()
@@ -34,6 +35,7 @@ pub async fn request_id_middleware(
         request_id = %request_id,
         method = %method,
         uri = %uri,
+        path = %path,
         instance = %instance
     );
 
