@@ -5,6 +5,7 @@ use axum::{
 use axum::extract::Path;
 
 use uuid::Uuid;
+use crate::api_error;
 use crate::error::ApiError;
 
 #[allow(dead_code)]
@@ -22,11 +23,11 @@ where
     ) -> Result<Self, Self::Rejection> {
         let Path(s) = Path::<String>::from_request_parts(parts, &())
             .await
-            .map_err(|e| ApiError::Conflict(e.to_string()))?;
+            .map_err(|e| api_error!(Conflict, e.to_string()))?;
 
         // Parse as UUID and validate the string representation matches exactly
         Uuid::parse_str(&s)
             .map(StrictUuid)
-            .map_err(|_| ApiError::BadRequestWithMessage("Invalid UUID format".to_string()))
+            .map_err(|_| api_error!(BadRequest, "Invalid UUID format"))
     }
 }

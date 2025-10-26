@@ -39,7 +39,7 @@ pub async fn request_id_middleware(
         instance = %instance
     );
 
-    let response = next.run(request).instrument(span.clone()).await;
+    let response = next.run(request).instrument(span).await;
 
     let mut response = response;
     response.headers_mut().insert(

@@ -6,11 +6,10 @@ use axum::{
     response::{IntoResponse},
 };
 use axum::extract::State;
-use axum::http::StatusCode;
 use jwt::Error;
 use rand::random;
 use tokio::sync::RwLock;
-use crate::AppState;
+use crate::{api_error, AppState};
 use crate::error::ApiError;
 use crate::service::{fetch_user_with_cache, JwtService};
 
@@ -32,10 +31,10 @@ pub async fn validate_jwt_middleware(
         .headers()
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
-        .ok_or(ApiError::Unauthorized)?;
-
+        .ok_or(api_error!(Unauthorized))?;
+    
     let jwt_service = JwtService::new(&state.config.jwt_secret)
-        .map_err(|_| ApiError::Custom(StatusCode::INTERNAL_SERVER_ERROR, "JWT error".into()))?;
+        .map_err(|_| api_error!(InternalServerError, "JWT service error"))?;
 
     let token = extract_bearer_token(header_auth).unwrap();
 
@@ -46,7 +45,7 @@ pub async fn validate_jwt_middleware(
             ).await?;
 
             if user_model.is_banned {
-                return Err(ApiError::Custom(StatusCode::FORBIDDEN, "user is banned".into()));
+                return Err(api_error!(Forbidden, "User is banned"));
             }
 
             let auth_user = AuthUser {
@@ -61,10 +60,10 @@ pub async fn validate_jwt_middleware(
             Ok(next.run(req).await)
         }
         Err(Error::InvalidSignature) => {
-            Err(ApiError::Unauthorized)
+            Err(api_error!(Unauthorized))
         }
         Err(_) => {
-            Err(ApiError::BadRequest)
+            Err(api_error!(Unauthorized))
         }
     }
 }

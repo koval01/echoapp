@@ -70,6 +70,7 @@ async fn main() {
                 .unwrap()
         )
         .with_span_events(fmt::format::FmtSpan::CLOSE)
+        .with_span_events(fmt::format::FmtSpan::FULL)
         .with_ansi(false)
         .with_target(true)
         .with_level(true)

@@ -7,7 +7,7 @@ use axum::{
 };
 use axum::extract::State;
 use tokio::sync::RwLock;
-use crate::AppState;
+use crate::{api_error, AppState};
 use crate::error::ApiError;
 
 pub async fn validate_initdata_middleware(
@@ -20,10 +20,10 @@ pub async fn validate_initdata_middleware(
         .headers()
         .get("X-InitData")
         .and_then(|value| value.to_str().ok())
-        .ok_or(ApiError::Unauthorized)?;
+        .ok_or(api_error!(Unauthorized))?;
 
     let decoded_init_data = urlencoding::decode(init_data)
-        .map_err(|_| ApiError::Unauthorized)?
+        .map_err(|_| api_error!(Unauthorized))?
         .into_owned();
 
     match crate::util::validator::validate_init_data(&decoded_init_data, &state.config.bot_token, &state.config.test_pub_key) {
@@ -31,7 +31,7 @@ pub async fn validate_initdata_middleware(
             req.extensions_mut().insert(decoded_init_data);
             Ok(next.run(req).await)
         },
-        Ok(false) => Err(ApiError::Unauthorized),
-        Err(_) => Err(ApiError::Unauthorized),
+        Ok(false) => Err(api_error!(Unauthorized)),
+        Err(_) => Err(api_error!(Unauthorized)),
     }
 }

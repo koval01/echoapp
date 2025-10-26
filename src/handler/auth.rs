@@ -3,16 +3,15 @@ use axum::extract::State;
 use axum_extra::extract::cookie::CookieJar;
 
 use std::sync::Arc;
-use axum::http::StatusCode;
 use tokio::sync::RwLock;
 
 use crate::{
-    error::ApiError,
-    extractor::InitData,
-    model::user::User,
-    response::ApiResponse,
-    util::cache::{CacheBackend, CacheWrapper},
-    AppState, cache_fetch,
+    error::ApiError, 
+    extractor::InitData, 
+    model::user::User, 
+    response::ApiResponse, 
+    util::cache::{CacheBackend, CacheWrapper}, 
+    AppState, cache_fetch, api_error
 };
 
 use entities::user::Model;
@@ -33,7 +32,7 @@ pub async fn auth_handler_get(
     ).await?;
 
     if user_model.is_banned {
-        return Err(ApiError::Custom(StatusCode::FORBIDDEN, String::from("user is banned")));
+        return Err(api_error!(Forbidden, "User is banned"));
     }
 
     let token = generate_auth_token(
@@ -66,7 +65,7 @@ async fn fetch_user_with_cache(
                 .await
         }
     );
-    user_option.map_err(|_| ApiError::NotFound("User not found".to_string()))
+    user_option.map_err(|_| api_error!(NotFound, "User not found"))
 }
 
 async fn generate_auth_token(

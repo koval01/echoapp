@@ -5,14 +5,14 @@ use sea_orm::DatabaseConnection;
 use entities::user::Model;
 use uuid::Uuid;
 use crate::{
-    error::ApiError,
+    error::ApiError, 
     response::ApiResponse,
+    model::user::PublicUser,
     extractor::{StrictUuid, JWTExtractor},
-    cache_fetch,
-    service::get_user_by_id,
-    util::cache::{CacheBackend, CacheWrapper, CacheError},
+    util::cache::{CacheBackend, CacheWrapper, CacheError}, 
+    api_error, cache_fetch,
+    service::get_user_by_id, 
 };
-use crate::model::user::PublicUser;
 
 async fn fetch_user<T, F, Fut>(
     user_id: T,
@@ -40,7 +40,7 @@ where
             let user = fetch_fn(uuid_id, db.clone()).await?;
             match user {
                 Some(u) => Ok(Some(u)),
-                None => Err(ApiError::NotFound("User not found".into())),
+                None => Err(api_error!(NotFound, "User not found")),
             }
         }
     )

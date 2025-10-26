@@ -3,7 +3,7 @@ use axum::{
     http::request::Parts,
 };
 use axum::extract::Path;
-
+use crate::api_error;
 use crate::error::ApiError;
 
 #[allow(dead_code)]
@@ -21,7 +21,7 @@ where
     ) -> Result<Self, Self::Rejection> {
         let Path(s) = Path::<String>::from_request_parts(parts, &())
             .await
-            .map_err(|e| ApiError::Conflict(e.to_string()))?;
+            .map_err(|e| api_error!(Conflict, e.to_string()))?;
 
         // Strict validation
         if let Ok(num) = s.parse::<i64>() {
@@ -29,10 +29,10 @@ where
             if num.to_string() == s {
                 Ok(StrictI64(num))
             } else {
-                Err(ApiError::BadRequestWithMessage("Invalid integer format".to_string()))
+                Err(api_error!(BadRequest, "Invalid integer format"))
             }
         } else {
-            Err(ApiError::BadRequestWithMessage("Invalid integer".to_string()))
+            Err(api_error!(BadRequest, "Invalid integer"))
         }
     }
 }

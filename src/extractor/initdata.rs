@@ -5,7 +5,7 @@ use axum::{
 
 use serde::de::DeserializeOwned;
 use url::form_urlencoded;
-
+use crate::api_error;
 use crate::error::ApiError;
 
 pub struct InitData<T>(pub T);
@@ -21,16 +21,16 @@ where
         let decoded_init_data = parts
             .extensions
             .get::<String>()
-            .ok_or(ApiError::BadRequest)?;
+            .ok_or(api_error!(BadRequest))?;
 
         let mut query_pairs = form_urlencoded::parse(decoded_init_data.as_bytes());
         let user_query = query_pairs
             .find(|(key, _)| key == "user")
-            .ok_or(ApiError::BadRequest)?
+            .ok_or(api_error!(BadRequest))?
             .1
             .to_string();
 
-        let data: T = serde_json::from_str(&user_query).map_err(|_| ApiError::BadRequest)?;
+        let data: T = serde_json::from_str(&user_query).map_err(|_| api_error!(BadRequest))?;
         Ok(InitData(data))
     }
 }

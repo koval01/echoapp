@@ -1,15 +1,15 @@
 use std::sync::Arc;
 use axum::{
+    response::IntoResponse,
     routing::{get},
     Router,
-    response::IntoResponse,
 };
 use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 
 use crate::{handler::{
     health_checker_handler,
-}, error::ApiError, AppState};
+}, AppState, api_error};
 use crate::handler::{auth_handler_get, user_by_id_handler_get, user_handler_get};
 use crate::middleware::{sync_user_middleware, validate_initdata_middleware, validate_jwt_middleware};
 
@@ -57,5 +57,5 @@ pub fn create_router(app_state: Arc<RwLock<AppState>>) -> Router {
         .merge(protected_routes)
         .merge(auth_routes)
         .with_state(app_state)
-        .fallback(|| async { ApiError::NotFound("not found".to_string()).into_response() })
+        .fallback(|| async { api_error!(NotFound, "Not Found").into_response() })
 }
