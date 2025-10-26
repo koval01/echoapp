@@ -17,7 +17,7 @@ use sea_orm::DbErr;
 use anyhow::Error as AnyhowError;
 use hmac::digest::InvalidLength;
 use jwt::error::Error as JwtError;
-use tracing::debug;
+use tracing::error;
 
 use crate::{
     response::ApiResponse, 
@@ -97,63 +97,63 @@ impl From<fn() -> ApiError> for ApiError {
 
 impl From<RedisError> for ApiError {
     fn from(error: RedisError) -> Self {
-        debug!("{:#?}", error);
+        error!("{:#?}", error);
         ApiError::Redis(RunError::User(error))
     }
 }
 
 impl From<DbErr> for ApiError {
     fn from(error: DbErr) -> Self {
-        debug!("Database error: {:#?}", error);
+        error!("Database error: {:#?}", error);
         ApiError::Database(error)
     }
 }
 
 impl From<AnyhowError> for ApiError {
     fn from(error: AnyhowError) -> Self {
-        debug!("Anyhow error: {:#?}", error);
+        error!("{:#?}", error);
         ApiError::Anyhow(error)
     }
 }
 
 impl From<InvalidLength> for ApiError {
     fn from(error: InvalidLength) -> Self {
-        debug!("HMAC invalid length error: {:#?}", error);
+        error!("HMAC invalid length error: {:#?}", error);
         ApiError::Cryptographic(format!("Invalid length: {}", error))
     }
 }
 
 impl From<JwtError> for ApiError {
     fn from(error: JwtError) -> Self {
-        debug!("JWT error: {:#?}", error);
+        error!("JWT error: {:#?}", error);
         ApiError::JwtError(error)
     }
 }
 
 impl From<ReqwestError> for ApiError {
     fn from(error: ReqwestError) -> Self {
-        debug!("Reqwest error: {:#?}", error);
+        error!("Reqwest error: {:#?}", error);
         ApiError::Reqwest(error)
     }
 }
 
 impl From<SerdeJsonError> for ApiError {
     fn from(error: SerdeJsonError) -> Self {
-        debug!("Serialization error: {:#?}", error);
+        error!("Serialization error: {:#?}", error);
         ApiError::Serialization(error)
     }
 }
 
 impl From<QueryRejection> for ApiError {
     fn from(error: QueryRejection) -> Self {
-        debug!("{:#?}", error);
+        error!("Invalid query: {:#?}", error);
         ApiError::Custom(StatusCode::BAD_REQUEST, error.body_text()) 
     }
 }
 
 impl From<PathRejection> for ApiError {
     fn from(error: PathRejection) -> Self {
-        debug!("{:#?}", error);
+        error!("Invalid path: {:#?}", error);
         ApiError::Custom(StatusCode::BAD_REQUEST, error.body_text())
     }
 }
