@@ -40,6 +40,8 @@ use sentry_tower::NewSentryLayer;
 
 use tokio::sync::RwLock;
 
+use hostname::get;
+
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -69,7 +71,6 @@ async fn main() {
                 .parse("sqlx::query=warn,tower_http=info,echoapp=info")
                 .unwrap()
         )
-        .with_span_events(fmt::format::FmtSpan::CLOSE)
         .with_span_events(fmt::format::FmtSpan::FULL)
         .with_ansi(false)
         .with_target(true)
@@ -78,6 +79,7 @@ async fn main() {
         .with_thread_names(true)
         .with_file(true)
         .with_line_number(true)
+        .json()
         .init();
 
     let _guard = sentry::init((
@@ -192,7 +194,12 @@ async fn main() {
         .await
         .unwrap();
 
-    info!("🚀 Server started successfully on {}", _bind);
+    let instance = get()
+        .ok()
+        .and_then(|h| h.into_string().ok())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    info!("Server started on instance {} successfully on {}", instance, _bind);
 
     axum::serve(
         listener,
