@@ -21,7 +21,9 @@ use redis::AsyncCommands;
 use moka::future::Cache;
 use reqwest::ClientBuilder;
 
-use axum::{http::{header::{ACCEPT, CONTENT_TYPE}, HeaderName, HeaderValue, Method}, extract::Extension};
+use axum::http::{header::{ACCEPT, CONTENT_TYPE}, HeaderName, HeaderValue, Method, Request};
+use axum::extract::Extension;
+use axum::body::Body;
 use sea_orm::DatabaseConnection;
 use route::create_router;
 
@@ -75,7 +77,7 @@ async fn main() {
         config.sentry_dsn.clone().into_dsn().unwrap(),
         ClientOptions {
             release: sentry::release_name!(),
-            traces_sample_rate: 0.2,
+            send_default_pii: true,
             ..Default::default()
         },
     ));
@@ -154,7 +156,7 @@ async fn main() {
         );
 
     let middleware_stack = ServiceBuilder::new()
-        .layer(NewSentryLayer::new_from_top())
+        .layer(NewSentryLayer::<Request<Body>>::new_from_top())
         .layer(trace_layer)
         .layer(cors)
         .layer(tower::limit::ConcurrencyLimitLayer::new(1024));
