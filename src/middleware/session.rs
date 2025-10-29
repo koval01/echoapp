@@ -10,7 +10,7 @@ use jwt::Error;
 use rand::random;
 use tokio::sync::RwLock;
 use crate::{api_error, AppState};
-use crate::error::ApiError;
+use crate::error::{ApiError, RequestCtx};
 use crate::service::{fetch_user_with_cache, JwtService};
 
 #[derive(Debug, Clone)]
@@ -26,16 +26,17 @@ pub async fn validate_jwt_middleware(
     next: Next,
 ) -> Result<impl IntoResponse, ApiError> {
     let state = state.read().await;
+    let ctx = req.extensions().get::<RequestCtx>().cloned().unwrap();
     let header_auth = req
         .headers()
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
-        .ok_or(api_error!(Unauthorized))?;
+        .ok_or(api_error!(Unauthorized).with_ctx(ctx.clone()))?;
     
     let jwt_service = JwtService::new(&state.config.jwt_secret)
-        .map_err(|_| api_error!(InternalServerError, "JWT service error"))?;
+        .map_err(|_| api_error!(InternalServerError, "JWT service error").with_ctx(ctx.clone()))?;
 
-    let token = extract_bearer_token(header_auth).unwrap();
+    let token = extract_bearer_token(header_auth).ok_or(api_error!(Unauthorized).with_ctx(ctx.clone()))?;
 
     match jwt_service.validate_token(&token) {
         Ok(claims) => {
@@ -44,7 +45,7 @@ pub async fn validate_jwt_middleware(
             ).await?;
 
             if user_model.is_banned {
-                return Err(api_error!(Forbidden, "User is banned"));
+                return Err(api_error!(Forbidden, "User is banned").with_ctx(ctx));
             }
 
             let auth_user = AuthUser {
@@ -59,10 +60,10 @@ pub async fn validate_jwt_middleware(
             Ok(next.run(req).await)
         }
         Err(Error::InvalidSignature) => {
-            Err(api_error!(Unauthorized))
+            Err(api_error!(Unauthorized).with_ctx(ctx))
         }
         Err(_) => {
-            Err(api_error!(Unauthorized))
+            Err(api_error!(Unauthorized).with_ctx(ctx))
         }
     }
 }

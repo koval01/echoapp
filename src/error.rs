@@ -30,7 +30,6 @@ pub struct RequestCtx {
     pub id: String,
     pub method: String,
     pub path: String,
-    pub uri: String,
     pub instance: String,
 }
 
@@ -216,7 +215,6 @@ impl ApiError {
                 request_id = %ctx.id,
                 method = %ctx.method,
                 path = %ctx.path,
-                uri = %ctx.uri,
                 instance = %ctx.instance,
                 "API Error occurred"
             );

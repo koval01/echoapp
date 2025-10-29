@@ -17,8 +17,7 @@ pub async fn request_id_middleware(
 ) -> Response {
     let request_id = Uuid::new_v4().to_string();
     let method = request.method().clone();
-    let uri = request.uri().clone();
-    let path = uri.path().to_string();
+    let path = request.uri().to_string();
 
     let instance = get()
         .ok()
@@ -29,14 +28,13 @@ pub async fn request_id_middleware(
         id: request_id.clone(),
         method: method.clone().to_string(),
         path: path.clone(),
-        uri: uri.clone().to_string(),
         instance: instance.clone(),
     });
 
     sentry::configure_scope(|scope: &mut Scope| {
         scope.set_tag("request_id", &request_id);
         scope.set_tag("http.method", method.as_str());
-        scope.set_tag("http.url", uri.to_string());
+        scope.set_tag("http.url", path.to_string());
         scope.set_tag("instance", &instance);
     });
 
@@ -44,7 +42,6 @@ pub async fn request_id_middleware(
         "request",
         request_id = %request_id,
         method = %method,
-        uri = %uri,
         path = %path,
         instance = %instance
     );
