@@ -26,6 +26,15 @@ use crate::{
     util::cache::CacheError
 };
 
+#[derive(Debug, Clone)]
+pub struct RequestCtx {
+    pub id: String,
+    pub method: String,
+    pub path: String,
+    pub uri: String,
+    pub instance: String,
+}
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum ApiError {
