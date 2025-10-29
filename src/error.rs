@@ -19,13 +19,13 @@ use anyhow::Error as AnyhowError;
 use hmac::digest::InvalidLength;
 use jwt::error::Error as JwtError;
 use tracing::{event, Level};
-use hostname::get;
 
 use crate::{
     response::ApiResponse,
     util::cache::CacheError
 };
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct RequestCtx {
     pub id: String,
@@ -203,11 +203,6 @@ impl ApiError {
         let location = self.location();
         let module = self.module();
 
-        let instance = get()
-            .ok()
-            .and_then(|h| h.into_string().ok())
-            .unwrap_or_else(|| "unknown".to_string());
-
         event!(
             Level::ERROR,
             status = status.as_u16(),
@@ -216,13 +211,11 @@ impl ApiError {
             module = %module,
             file = %location.file(),
             line = %location.line(),
-            instance = instance,
             "API Error occurred"
         );
     }
 }
 
-// Макрос для удобного создания ошибок
 #[macro_export]
 macro_rules! api_error {
     ($error_type:ident) => {
