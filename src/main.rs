@@ -87,7 +87,6 @@ async fn main() {
         .parse("sqlx::query=warn,tower_http=info,echoapp=info")
         .unwrap();
 
-    // Собираем subscriber правильно
     match telegram_layer {
         Some(tg_layer) => {
             tracing_subscriber::registry()
