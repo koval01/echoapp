@@ -17,6 +17,7 @@ use crate::{
 use entities::user::Model;
 use moka::future::Cache;
 use sea_orm::DatabaseConnection;
+use crate::error::RequestCtx;
 use crate::service::{CookieService, JwtService};
 
 pub async fn auth_handler_get(
@@ -25,14 +26,14 @@ pub async fn auth_handler_get(
     Extension(redis_pool): Extension<CacheBackend>,
     Extension(moka_cache): Extension<Cache<String, String>>,
     State(state): State<Arc<RwLock<AppState>>>,
-    jar: CookieJar
+    jar: CookieJar,
+    ctx: Extension<RequestCtx>
 ) -> Result<(CookieJar, Json<ApiResponse<Model>>), ApiError> {
     let user_model = fetch_user_with_cache(
         user.id, &db, redis_pool, moka_cache
     ).await?;
-
     if user_model.is_banned {
-        return Err(api_error!(Forbidden, "User is banned"));
+        return Err(api_error!(Forbidden, "User is banned").with_ctx(ctx.0));
     }
 
     let token = generate_auth_token(

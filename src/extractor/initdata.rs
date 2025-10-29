@@ -6,7 +6,7 @@ use axum::{
 use serde::de::DeserializeOwned;
 use url::form_urlencoded;
 use crate::api_error;
-use crate::error::ApiError;
+use crate::error::{ApiError, RequestCtx};
 
 pub struct InitData<T>(pub T);
 
@@ -21,16 +21,36 @@ where
         let decoded_init_data = parts
             .extensions
             .get::<String>()
-            .ok_or(api_error!(BadRequest))?;
+            .ok_or_else(|| {
+                if let Some(ctx) = parts.extensions.get::<RequestCtx>() {
+                    api_error!(BadRequest, "Missing init data").with_ctx(ctx.clone())
+                } else {
+                    api_error!(BadRequest, "Missing init data")
+                }
+            })?;
 
         let mut query_pairs = form_urlencoded::parse(decoded_init_data.as_bytes());
         let user_query = query_pairs
             .find(|(key, _)| key == "user")
-            .ok_or(api_error!(BadRequest))?
+            .ok_or_else(|| {
+                if let Some(ctx) = parts.extensions.get::<RequestCtx>() {
+                    api_error!(BadRequest, "Missing user data in init data").with_ctx(ctx.clone())
+                } else {
+                    api_error!(BadRequest, "Missing user data in init data")
+                }
+            })?
             .1
             .to_string();
 
-        let data: T = serde_json::from_str(&user_query).map_err(|_| api_error!(BadRequest))?;
+        let data: T = serde_json::from_str(&user_query).map_err(|e| {
+            if let Some(ctx) = parts.extensions.get::<RequestCtx>() {
+                api_error!(BadRequest, &format!("Failed to parse user data: {}", e))
+                    .with_ctx(ctx.clone())
+            } else {
+                api_error!(BadRequest, &format!("Failed to parse user data: {}", e))
+            }
+        })?;
+
         Ok(InitData(data))
     }
 }

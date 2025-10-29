@@ -1,29 +1,25 @@
 use std::sync::Arc;
-use axum::{
-    body::Body,
-    http::{Request},
-    middleware::Next,
-    response::{IntoResponse},
-};
+use axum::{body::Body, http::{Request}, middleware::Next, response::{IntoResponse}};
 use axum::extract::State;
 use tokio::sync::RwLock;
 use crate::{api_error, AppState};
-use crate::error::ApiError;
+use crate::error::{ApiError, RequestCtx};
 
 pub async fn validate_initdata_middleware(
     State(state): State<Arc<RwLock<AppState>>>,
     mut req: Request<Body>,
-    next: Next,
+    next: Next
 ) -> Result<impl IntoResponse, ApiError> {
     let state = state.read().await;
+    let ctx = req.extensions().get::<RequestCtx>().cloned().unwrap();
     let init_data = req
         .headers()
         .get("X-InitData")
         .and_then(|value| value.to_str().ok())
-        .ok_or(api_error!(Unauthorized))?;
+        .ok_or(api_error!(Unauthorized).with_ctx(ctx.clone()))?;
 
     let decoded_init_data = urlencoding::decode(init_data)
-        .map_err(|_| api_error!(Unauthorized))?
+        .map_err(|_| api_error!(Unauthorized).with_ctx(ctx.clone()))?
         .into_owned();
 
     match crate::util::validator::validate_init_data(&decoded_init_data, &state.config.bot_token, &state.config.test_pub_key) {
@@ -31,7 +27,7 @@ pub async fn validate_initdata_middleware(
             req.extensions_mut().insert(decoded_init_data);
             Ok(next.run(req).await)
         },
-        Ok(false) => Err(api_error!(Unauthorized)),
-        Err(_) => Err(api_error!(Unauthorized)),
+        Ok(false) => Err(api_error!(Unauthorized).with_ctx(ctx)),
+        Err(_) => Err(api_error!(Unauthorized).with_ctx(ctx)),
     }
 }
