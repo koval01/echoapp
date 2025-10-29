@@ -34,18 +34,6 @@ pub struct RequestCtx {
     pub instance: String,
 }
 
-impl RequestCtx {
-    pub fn as_log_fields(&self) -> Vec<(&'static str, String)> {
-        vec![
-            ("request_id", self.id.clone()),
-            ("method", self.method.clone()),
-            ("path", self.path.clone()),
-            ("uri", self.uri.clone()),
-            ("instance", self.instance.clone()),
-        ]
-    }
-}
-
 #[derive(Debug)]
 pub struct ApiError {
     pub inner: ApiErrorType,
@@ -99,11 +87,6 @@ pub enum ApiErrorType {
         location: &'static Location<'static>,
         module: String,
     },
-    SelectorParseError {
-        message: String,
-        location: &'static Location<'static>,
-        module: String,
-    },
     Database {
         error: DbErr,
         location: &'static Location<'static>,
@@ -144,7 +127,6 @@ impl ApiError {
             ApiErrorType::Redis { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorType::Reqwest { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorType::Serialization { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiErrorType::SelectorParseError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorType::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorType::Anyhow { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorType::Cryptographic { .. } => StatusCode::INTERNAL_SERVER_ERROR,
@@ -164,7 +146,6 @@ impl ApiError {
             ApiErrorType::Redis { error, .. } => format!("redis error: {}", error),
             ApiErrorType::Reqwest { error, .. } => format!("HTTP request error: {}", error),
             ApiErrorType::Serialization { error, .. } => format!("JSON serialization error: {}", error),
-            ApiErrorType::SelectorParseError { message, .. } => format!("Selector parse error: {}", message),
             ApiErrorType::Database { error, .. } => format!("Database error: {}", error),
             ApiErrorType::Anyhow { error, .. } => format!("Internal error: {}", error),
             ApiErrorType::Cryptographic { message, .. } => format!("Cryptographic error: {}", message),
@@ -184,7 +165,6 @@ impl ApiError {
             ApiErrorType::Redis { location, .. } => location,
             ApiErrorType::Reqwest { location, .. } => location,
             ApiErrorType::Serialization { location, .. } => location,
-            ApiErrorType::SelectorParseError { location, .. } => location,
             ApiErrorType::Database { location, .. } => location,
             ApiErrorType::Anyhow { location, .. } => location,
             ApiErrorType::Cryptographic { location, .. } => location,
@@ -204,7 +184,6 @@ impl ApiError {
             ApiErrorType::Redis { module, .. } => module,
             ApiErrorType::Reqwest { module, .. } => module,
             ApiErrorType::Serialization { module, .. } => module,
-            ApiErrorType::SelectorParseError { module, .. } => module,
             ApiErrorType::Database { module, .. } => module,
             ApiErrorType::Anyhow { module, .. } => module,
             ApiErrorType::Cryptographic { module, .. } => module,
@@ -216,10 +195,6 @@ impl ApiError {
     pub fn with_ctx(mut self, ctx: RequestCtx) -> Self {
         self.ctx = Some(ctx);
         self
-    }
-
-    pub fn ctx(&self) -> Option<&RequestCtx> {
-        self.ctx.as_ref()
     }
 
     fn log_error(&self) {
@@ -283,82 +258,6 @@ macro_rules! api_error {
         }
     };
 }
-
-impl ApiError {
-    #[track_caller]
-    pub fn bad_request() -> Self {
-        ApiError {
-            inner: ApiErrorType::BadRequest {
-                message: "bad request".to_string(),
-                location: Location::caller(),
-                module: module_path!().to_string(),
-            },
-            ctx: None,
-        }
-    }
-
-    #[track_caller]
-    pub fn unauthorized() -> Self {
-        ApiError {
-            inner: ApiErrorType::Unauthorized {
-                message: "unauthorized".to_string(),
-                location: Location::caller(),
-                module: module_path!().to_string(),
-            },
-            ctx: None,
-        }
-    }
-
-    #[track_caller]
-    pub fn forbidden() -> Self {
-        ApiError {
-            inner: ApiErrorType::Forbidden {
-                message: "forbidden".to_string(),
-                location: Location::caller(),
-                module: module_path!().to_string(),
-            },
-            ctx: None,
-        }
-    }
-
-    #[track_caller]
-    pub fn not_found(message: &str) -> Self {
-        ApiError {
-            inner: ApiErrorType::NotFound {
-                message: message.to_string(),
-                location: Location::caller(),
-                module: module_path!().to_string(),
-            },
-            ctx: None,
-        }
-    }
-
-    #[track_caller]
-    pub fn conflict(message: &str) -> Self {
-        ApiError {
-            inner: ApiErrorType::Conflict {
-                message: message.to_string(),
-                location: Location::caller(),
-                module: module_path!().to_string(),
-            },
-            ctx: None,
-        }
-    }
-
-    #[track_caller]
-    pub fn internal_error(message: &str) -> Self {
-        ApiError {
-            inner: ApiErrorType::InternalServerError {
-                message: message.to_string(),
-                location: Location::caller(),
-                module: module_path!().to_string(),
-            },
-            ctx: None,
-        }
-    }
-}
-
-// Реализации From с сохранением location
 
 impl From<RedisError> for ApiError {
     #[track_caller]

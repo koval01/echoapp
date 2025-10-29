@@ -14,10 +14,9 @@ use crate::error::ApiError;
 use crate::service::{fetch_user_with_cache, JwtService};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AuthUser {
-    #[allow(dead_code)]
     pub user_id: uuid::Uuid,
-    #[allow(dead_code)]
     pub session_id: String,
 }
 

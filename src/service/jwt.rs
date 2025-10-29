@@ -7,11 +7,10 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct JwtClaims {
     pub user_id: Uuid,
-    #[allow(dead_code)]
     pub issued_at: i64,
-    #[allow(dead_code)]
     pub expiration: i64,
 }
 
@@ -74,76 +73,5 @@ impl JwtService {
             issued_at,
             expiration: exp,
         })
-    }
-
-    #[allow(dead_code)]
-    pub fn validate_token_to_value(&self, token: &str) -> Result<Value, Error> {
-        let claims: BTreeMap<String, Value> = token.verify_with_key(&self.key)?;
-
-        // Validate expiration
-        let exp = claims.get("exp")
-            .and_then(|v| v.as_i64())
-            .ok_or(Error::InvalidSignature)?;
-
-        let current_time = OffsetDateTime::now_utc().unix_timestamp();
-        if exp < current_time {
-            return Err(Error::InvalidSignature);
-        }
-
-        // Validate issuer and audience
-        if let Some(iss) = claims.get("iss") {
-            if iss != "echoapp" {
-                return Err(Error::InvalidSignature);
-            }
-        }
-
-        // Convert BTreeMap to Value
-        Ok(Value::Object(
-            claims.into_iter().map(|(k, v)| (k, v)).collect()
-        ))
-    }
-
-    #[allow(dead_code)]
-    pub fn validate_token_to_map(&self, token: &str) -> Result<BTreeMap<String, Value>, Error> {
-        let claims: BTreeMap<String, Value> = token.verify_with_key(&self.key)?;
-
-        // Validate expiration
-        let exp = claims.get("exp")
-            .and_then(|v| v.as_i64())
-            .ok_or(Error::InvalidSignature)?;
-
-        let current_time = OffsetDateTime::now_utc().unix_timestamp();
-        if exp < current_time {
-            return Err(Error::InvalidSignature);
-        }
-
-        // Validate issuer and audience
-        if let Some(iss) = claims.get("iss") {
-            if iss != "echoapp" {
-                return Err(Error::InvalidSignature);
-            }
-        }
-
-        Ok(claims)
-    }
-
-    #[allow(dead_code)]
-    pub fn validate_and_refresh(&self, token: &str, refresh_threshold_hours: i64) -> Result<(JwtClaims, Option<String>), Error> {
-        let claims = self.validate_token(token)?;
-
-        // Check if token needs refresh
-        let refresh_time = claims.expiration - (refresh_threshold_hours * 3600);
-        let current_time = OffsetDateTime::now_utc().unix_timestamp();
-
-        let new_token = if current_time >= refresh_time {
-            // Generate new token with same expiration duration
-            let hours_remaining = (claims.expiration - current_time) / 3600;
-            let new_expiration = hours_remaining.max(1); // At least 1 hour
-            Some(self.generate_token(claims.user_id, new_expiration)?)
-        } else {
-            None
-        };
-
-        Ok((claims, new_token))
     }
 }

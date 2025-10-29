@@ -13,7 +13,6 @@ use crate::error::ApiError;
 use crate::model::user::User;
 use crate::util::cache::{CacheBackend, CacheWrapper};
 
-#[allow(dead_code)]
 pub async fn get_user_by_id(
     user_id: Uuid,
     db: &Arc<DatabaseConnection>,

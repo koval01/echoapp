@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::api_error;
 use crate::error::ApiError;
 
-#[allow(dead_code)]
 pub struct StrictUuid(pub Uuid);
 
 impl<S> FromRequestParts<S> for StrictUuid
