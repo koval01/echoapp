@@ -362,7 +362,6 @@ where
 
 pub fn init_telegram_logging(bot_token: String, chat_id: String) -> Option<TelegramLayer> {
     if bot_token.is_empty() || chat_id.is_empty() {
-        println!("Telegram logging disabled: missing BOT_TOKEN or CHAT_ID");
         return None;
     }
 
