@@ -79,12 +79,11 @@ async fn main() {
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_file(true)
-        .with_line_number(true)
-        .json();
+        .with_line_number(true);
 
     let filter = EnvFilter::builder()
-        .with_default_directive(tracing::Level::INFO.into())
-        .parse("sqlx::query=warn,tower_http=info,echoapp=info")
+        .with_default_directive(tracing::Level::WARN.into())
+        .parse("echoapp=info,echoapp::error=off,echoapp::middleware=info,sqlx::query=warn,tower_http=warn")
         .unwrap();
 
     match telegram_layer {
@@ -132,7 +131,7 @@ async fn main() {
 
     let moka_cache: Cache<String, String> = Cache::builder()
         .time_to_live(Duration::from_secs(60))
-        .max_capacity(16_000)
+        .max_capacity(24_000)
         .build();
 
     let db = database::establish_connection(&config.database_url)
@@ -147,8 +146,8 @@ async fn main() {
             .max_size((num_cpus::get() * 10) as u32)
             .min_idle((num_cpus::get() * 2 + 1) as u32)
             .max_lifetime(None)
-            .connection_timeout(Duration::from_millis(2000))
-            .idle_timeout(Some(Duration::from_secs(60)))
+            .connection_timeout(Duration::from_millis(3000))
+            .idle_timeout(Some(Duration::from_secs(120)))
             .build(redis_manager)
             .await
             .unwrap();
@@ -167,7 +166,7 @@ async fn main() {
     let http_client = ClientBuilder::new()
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(10))
-        .pool_max_idle_per_host(10)
+        .pool_max_idle_per_host(num_cpus::get() * 10)
         .pool_idle_timeout(Duration::from_secs(60))
         .user_agent(format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
         .gzip(true)
