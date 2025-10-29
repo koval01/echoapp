@@ -25,7 +25,6 @@ use crate::{
     util::cache::CacheError
 };
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct RequestCtx {
     pub id: String,
@@ -54,7 +53,6 @@ pub struct ApiError {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum ApiErrorType {
     BadRequest {
         message: String,
@@ -286,7 +284,6 @@ macro_rules! api_error {
     };
 }
 
-#[allow(dead_code)]
 impl ApiError {
     #[track_caller]
     pub fn bad_request() -> Self {
