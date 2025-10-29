@@ -44,7 +44,8 @@ use hostname::get;
 
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
-
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use migration::{Migrator, MigratorTrait};
 
 use crate::{
@@ -52,6 +53,7 @@ use crate::{
     util::cache::CacheBackend,
     middleware::{request_id_middleware, process_time_middleware}
 };
+use crate::util::telegram_logging::init_telegram_logging;
 
 pub struct AppState {
     pub config: Config,
@@ -64,13 +66,12 @@ pub struct AppState {
 async fn main() {
     let config = Config::init();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(tracing::Level::INFO.into())
-                .parse("sqlx::query=warn,tower_http=info,echoapp=info")
-                .unwrap()
-        )
+    let telegram_layer = init_telegram_logging(
+        config.bot_token.clone(),
+        config.telegram_chat_id.clone()
+    );
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .with_span_events(fmt::format::FmtSpan::FULL)
         .with_ansi(false)
         .with_target(true)
@@ -79,8 +80,29 @@ async fn main() {
         .with_thread_names(true)
         .with_file(true)
         .with_line_number(true)
-        .json()
-        .init();
+        .json();
+
+    let filter = EnvFilter::builder()
+        .with_default_directive(tracing::Level::INFO.into())
+        .parse("sqlx::query=warn,tower_http=info,echoapp=info")
+        .unwrap();
+
+    // Собираем subscriber правильно
+    match telegram_layer {
+        Some(tg_layer) => {
+            tracing_subscriber::registry()
+                .with(filter)
+                .with(fmt_layer)
+                .with(tg_layer)
+                .init();
+        }
+        None => {
+            tracing_subscriber::registry()
+                .with(filter)
+                .with(fmt_layer)
+                .init();
+        }
+    }
 
     let _guard = sentry::init((
         config.sentry_dsn.clone().into_dsn().unwrap(),
